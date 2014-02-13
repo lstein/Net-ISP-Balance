@@ -1,0 +1,97 @@
+#!/bin/sh
+#
+# /etc/init.d/lsm
+#
+# This shellscript takes care of starting and stopping lsm.
+#
+# chkconfig: - 79 31
+# description: Lsm, Link Status Monitor
+#
+### BEGIN INIT INFO
+# Provides: lsm
+# Required-Start: $network $syslog
+# Required-Stop:
+# Default-Stop: 0 1 6
+# Short-Description: LSM - link status monitor
+# Description: LSM is the link status monitor
+#	LSM can ping multiple targets and when up or down event happens
+#	it will execute user configured external script so it can be used
+#	as poor man's routing protocol.
+### END INIT INFO
+
+# Source function library.
+. /etc/init.d/functions
+
+# Source networking configuration.
+. /etc/sysconfig/network
+
+# Check that networking is up.
+[ ${NETWORKING} = "no" ] && exit 0
+
+OPTIONS="/etc/lsm/lsm.conf"
+PIDFILE="/var/run/lsm.pid"
+
+[ -f /etc/sysconfig/lsm ] && . /etc/sysconfig/lsm
+[ -x /usr/sbin/lsm ] || exit 0
+
+RETVAL=0
+
+start() {
+    echo -n $"Starting lsm: "
+    daemon --pidfile=${PIDFILE} /usr/sbin/lsm $OPTIONS $PIDFILE
+    RETVAL=$?
+    /bin/usleep 10000
+    echo
+    [ $RETVAL = 0 ] && touch /var/lock/subsys/lsm
+    return $RETVAL
+}
+
+stop() {
+    echo -n $"Stopping lsm: "
+    killproc /usr/sbin/lsm
+    RETVAL=$?
+    echo
+    [ $RETVAL = 0 ] && rm -f /var/lock/subsys/lsm
+    return $RETVAL
+}
+
+restart() {
+    stop
+    start
+}
+
+reload() {
+        echo -n $"Reloading lsm: "
+        killproc -p ${PIDFILE} /usr/sbin/lsm -HUP
+        RETVAL=$?
+        echo
+        return $RETVAL
+}
+
+# See how we were called.
+case "$1" in
+    start)
+	start
+	;;
+    stop)
+	stop
+	;;
+    restart)
+	restart
+	;;
+    reload)
+	reload
+	;;
+    condrestart)
+	[ -f /var/lock/subsys/lsm ] && restart
+	;;
+    status)
+	status -p ${PIDFILE} lsm
+	RETVAL=$?
+	;;
+    *)
+	echo "Usage: lsm {start|stop|restart|condrestart|status}"
+	RETVAL=2
+esac
+
+exit $RETVAL

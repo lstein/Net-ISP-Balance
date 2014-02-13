@@ -1,0 +1,6 @@
+#service    device   action   gateway
+LAN	    eth0     netg      192.168.0.1
+CABLE	    eth1     balance
+DSL	    ppp0     balance
+CMODEM      eth1     private
+DMODEM      eth2     private

@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# You can call a set of scripts like so on an event
+
+cd /etc/lsm/script.d
+for script in $(ls); do
+    if [ ! -x $script ]; then
+        continue
+    fi
+    ./$script "$@"
+done
+
+#EOF
