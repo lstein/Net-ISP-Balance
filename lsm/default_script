@@ -36,7 +36,7 @@ cat <<EOM | mail -s "LSM: ${NAME} ${STATE}, IP ${CHECKIP}" ${WARN_EMAIL}
 
 Hi,
 
-Your connection ${NAME} has changed it's state to ${STATE} at ${DATE}.
+Your connection ${NAME} has changed its state to ${STATE} at ${DATE}.
 
 Following parameters were passed:
 prevstate    = ${PREVSTATE}

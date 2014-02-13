@@ -43,11 +43,9 @@ Makefile.depend: *.c *.h Makefile
 
 install: lsm
 	mkdir -p /var/lib/lsm
-	mkdir -p /usr/local/share/lsm
-	mkdir -p /usr/local/etc
+	mkdir -p /etc/network/lsm
 	install -o root -g root -m u=rwx lsm /usr/local/bin
-	install -o root -g root -m u=rw,go=r lsm.conf /usr/local/etc
-	install -o root -g root -m u=rw,go=r default_script /usr/local/share/lsm
+	install -o root -g root -m u=rw,go=r default_script /etc/network/lsm
 
 -include Makefile.depend
 

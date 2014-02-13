@@ -4,40 +4,40 @@ use strict;
 use warnings;
 use Module::Build;
 
-my $class = Module::Build->subclass(code=><<EOF);
+my $class = Module::Build->subclass(code=><<'EOF');
 
     sub ACTION_build {
-	my \$self = shift;
-	my \$dir  = \$self->base_dir();
-	\$self->SUPER::ACTION_build();
-	chomp(my \$make  = `which make`);
-	chomp(my \$nmake = `which nmake`);
-	\$make ||= \$nmake;
-	system "cd lsm; \$make; cd \$dir";
+	my $self = shift;
+	my $dir  = $self->base_dir();
+	$self->SUPER::ACTION_build();
+	chomp(my $make  = `which make`);
+	chomp(my $nmake = `which nmake`);
+	$make ||= $nmake;
+	system "cd lsm; $make; cd $dir";
     }
 
     sub ACTION_clean {
-	my \$self = shift;
-	my \$dir  = \$self->base_dir();
-	\$self->SUPER::ACTION_clean();
-        system "cd lsm; make -s clean; cd \$dir";
+	my $self = shift;
+	my $dir  = $self->base_dir();
+	$self->SUPER::ACTION_clean();
+        system "cd lsm; make -s clean; cd $dir";
     }
 
 
     sub ACTION_install {
-	my \$self = shift;
-	my \$dir  = \$self->base_dir();
-	\$self->SUPER::ACTION_install();
-        system "cd lsm; make install; cd \$dir";
-	\$self->copy_if_modified(from   => './blib/etc/network/balancer.conf',
-				 to_dir => '/etc/network/',
-				 flatten => 1,
-	    );
+	my $self = shift;
+	my $dir  = $self->base_dir();
+	$self->SUPER::ACTION_install();
+        system "cd lsm; make install; cd $dir";
+	my $dest = -e '/etc/network/balancer.conf' ? '/etc/network/balancer.conf.pkg-dist'
+	                                           :  '/etc/network/balancer.conf';
+	$self->copy_if_modified(from   => './blib/etc/network/balancer.conf',
+				to     => $dest);
     }
 
     sub process_etc_files {
-	my \$self = shift;
-	\$self->copy_if_modified(from   =>'./etc/network/balancer.conf',
+	my $self = shift;
+	$self->copy_if_modified(from   =>'./etc/network/balancer.conf',
 				 to_dir => './blib');
     }
 
