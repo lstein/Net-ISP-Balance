@@ -2,6 +2,7 @@ package Net::ISP::Balance;
 
 use strict;
 use Net::Netmask;
+use IO::String;
 use Carp 'croak','carp';
 
 =head1 NAME
@@ -87,21 +88,35 @@ use Carp;
 
 Here are major methods that are recommended for users of this module.
 
-=head2 $bal = Net::ISP::Balance->new('/path/to/config_file.conf');
+=head2 $bal = Net::ISP::Balance->new('/path/to/config_file.conf','/path/to/interfaces');
+
+Creates a new balancer object. 
+
+The first optional argument is the balancer configuration file, defaults
+to /etc/network/balancer.conf.  
+
+The second optional argument is the system network interfaces file,
+defaulting to /etc/network/interfaces.
 
 =cut
 
 sub new {
     my $class = shift;
-    my $conf  = shift;
-    $conf && -r $conf || croak 'Must provide a readable configuration file path';
+    my ($conf,$interfaces,$dummy_test_data)  = @_;
+    $conf       ||= '/etc/network/balancer.conf';
+    $interfaces ||= '/etc/network/interfaces';
+    $conf       && -r $conf       || croak 'Must provide a readable configuration file path';
+    $interfaces && -r $interfaces || croak 'Must provide a readable network interfaces path';
     my $self  = bless {
 	verbose   => 0,
 	echo_only => 0,
-	services  => {}
+	services  => {},
+	dummy_data=>$dummy_test_data,
     },ref $class || $class;
+
     $self->_parse_configuration_file($conf);
-    $self->_collect_interfaces($conf);
+    $self->_collect_interfaces($interfaces);
+
     return $self;
 }
 
@@ -138,7 +153,7 @@ sub services { return shift->{services} }
 =cut
 
 sub service {
-    shift->{services}{shift};
+    shift->{services}{shift()};
 }
 
 =head2 $dev = $bal->dev('CABLE')
@@ -157,7 +172,7 @@ sub ping   { shift->_service_field(shift,'ping')  }
 sub _service_field {
     my $self = shift;
     my ($service,$field) = @_;
-    my $s = $self->service($service) or return;
+    my $s = $self->{services}{$service} or return;
     $s->{$field};
 }
 
@@ -166,7 +181,7 @@ sub _parse_configuration_file {
     my $path = shift;
     my %services;
     open my $f,$path or die "Could not open $path: $!";
-    while (<>) {
+    while (<$f>) {
 	chomp;
 	next if /^\s*#/;
 	my ($service,$device,$action,$ping_dest) = split /\s+/;
@@ -176,13 +191,14 @@ sub _parse_configuration_file {
 	$services{$service}{ping}=$ping_dest;
     }
     close $f;
-    $self->{services}=\%services;
+    $self->{svc_config}=\%services;
 }
 
 sub _collect_interfaces {
     my $self = shift;
-    my $s    = $self->{services} or return;
-    my (%ifaces,%iface_type,%devs);
+    my $interfaces = shift;
+    my $s    = $self->{svc_config} or return;
+    my (%ifaces,%iface_type,$lastdev,%gw,%devs);
 
     # map devices to services
     for my $svc (keys %$s) {
@@ -192,20 +208,24 @@ sub _collect_interfaces {
 
     # use /etc/network/interfaces to figure out what kind of
     # device each is.
-    open my $f,'/etc/network/interfaces' or die "/etc/network/interfaces: $!";
+    open my $f,$interfaces or die "$interfaces: $!";
     while (<$f>) {
 	chomp;
 	if (/^\s*iface\s+(\w+)\s+inet\s+(\w+)/) {
 	    $iface_type{$1} = $2;
+	    $lastdev = $1;
+	}
+	if (/^\s*gateway\s+(\S+)/ && $lastdev) {
+	    $gw{$lastdev}=$1;
 	}
     }
     close $f;
     my $counter = 0;
     for my $dev (keys %iface_type) {
-	my $svc     = $devs{$dev};
+	my $svc     = $devs{$dev} or next;
 	my $action = $svc ? $s->{$svc}{action} : '';
 	my $type  = $iface_type{$dev};
-	my $info = $type eq 'static' ? $self->get_static_info($dev)
+	my $info = $type eq 'static' ? $self->get_static_info($dev,$gw{$dev})
 	          :$type eq 'dhcp'   ? $self->get_dhcp_info($dev)
 	          :$type eq 'ppp'    ? $self->get_ppp_info($dev)
 		  :undef;
@@ -221,7 +241,7 @@ sub _collect_interfaces {
 	$info->{ping} = $s->{$svc}{ping};
 	$ifaces{$svc}=$info;
     }
-    $self->{interfaces} = \%ifaces;
+    $self->{services} = \%ifaces;
 }
 
 # use base 'Exporter';
@@ -233,11 +253,12 @@ our $VERBOSE    = 0;
 our $DEBUG_ONLY = 0;
 
 # e.g. sh "ip route flush table main";
-sub sh ($) {
-    my $arg = shift;
+sub sh {
+    my $self = shift;
+    my $arg  = shift;
     chomp($arg);
-    carp $arg   if $VERBOSE;
-    if ($DEBUG_ONLY) {
+    carp $arg   if $self->verbose;
+    if ($self->echo_only) {
 	$arg .= "\n";
 	print $arg;
     } else {
@@ -248,13 +269,13 @@ sub sh ($) {
 sub get_ppp_info {
     my $self     = shift;
     my $device   = shift;
-    my $ifconfig = `ifconfig $device` or return;
+    my $ifconfig = $self->_ifconfig($device) or return;
     my ($ip)     = $ifconfig =~ /inet addr:(\S+)/;
     my ($peer)   = $ifconfig =~ /P-t-P:(\S+)/;
     my ($mask)   = $ifconfig =~ /Mask:(\S+)/;
     my $up       = $ifconfig =~ /^\s+UP\s/m;
     my $block    = Net::Netmask->new($peer,$mask);
-    return {up  => $up,
+    return {running  => $up,
 	    dev => $device,
 	    ip  => $ip,
 	    gw  => $peer,
@@ -264,29 +285,28 @@ sub get_ppp_info {
 
 sub get_static_info {
     my $self     = shift;
-    my $device = shift;
-    my $ifconfig = `ifconfig $device` or return;
+    my ($device,$gw) = @_;
+    my $ifconfig = $self->_ifconfig($device) or return;
     my ($addr)   = $ifconfig =~ /inet addr:(\S+)/;
     my $up       = $ifconfig =~ /^\s+UP\s/m;
     my ($mask)   = $ifconfig =~ /Mask:(\S+)/;
     my $block    = Net::Netmask->new($addr,$mask);
-    return {up  => $up,
+    return {running  => $up,
 	    dev => $device,
 	    ip  => $addr,
-	    gw  => $block->nth(1),
+	    gw  => $gw || $block->nth(1),
 	    net => "$block",
 	    fwmark => undef,};
 }
 
 sub get_dhcp_info {
     my $self     = shift;
-    my $device = shift;
-    my $leases = $self->find_dhclient_leases($device) or die "Can't find lease file for $device";
-    my $ifconfig = `ifconfig $device`;
-    open my $f,$leases or die "Can't open lease file $leases: $!";
+    my $device   = shift;
+    my $fh       = $self->_open_dhclient_leases($device) or die "Can't find lease file for $device";
+    my $ifconfig = $self->_ifconfig($device)             or die "Can't ifconfig $device";
 
     my ($ip,$gw,$netmask);
-    while (<$f>) {
+    while (<$fh>) {
 	chomp;
 
 	if (/fixed-address (\S+);/) {
@@ -310,7 +330,7 @@ sub get_dhcp_info {
 
     my $up       = $ifconfig =~ /^\s+UP\s/m;
     my $block = Net::Netmask->new($ip,$netmask);
-    return {up  => $up,
+    return {running  => $up,
 	    dev => $device,
 	    ip  => $ip,
 	    gw  => $gw,
@@ -330,6 +350,28 @@ sub find_dhclient_leases {
     }
     return;
 }
+
+sub _open_dhclient_leases {
+    my $self = shift;
+    my $device = shift;
+    if (my $dummy = $self->{dummy_data}{"leases_$device"}) {
+	return IO::String->new($dummy);
+    }
+    my $leases = $self->find_dhclient_leases($device) or die "Can't find lease file for $device";
+    open my $fh,$leases or die "Can't open $leases: $!";
+    return $fh;
+}
+
+sub _ifconfig {
+    my $self   = shift;
+    my $device = shift;
+    if (my $dummy = $self->{dummy_data}{"ifconfig_$device"}) {
+	return $dummy;
+    }
+    return `ifconfig $device`;
+}
+
+
 
 1;
 
