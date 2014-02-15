@@ -65,9 +65,8 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  $bal->routing_rules();
  $bal->base_fw_rules();
  $bal->balancing_fw_rules();
- $bal->nat_fw_rules();
- $bal->incoming_service_fw_rules();
- $bal->dnat_fw_rules();
+ $bal->outgoing_fw_rules();
+ $bal->incoming_fw_rules();
  $bal->local_rules();
  $bal->enable_forwarding(1);
 
@@ -148,6 +147,19 @@ sub verbose {
     $d;
 }
 
+=head2 $bal->iptables_verbose([boolean])
+
+Makes iptables log verbosely to syslog
+
+=cut
+
+sub iptables_verbose {
+    my $self = shift;
+    my $d    = $self->{iptables_verbose};
+    $self->{iptables_verbose} = shift if @_;
+    $d;
+}
+
 =head2 $bal->echo_only([boolean]);
 
 =cut
@@ -179,6 +191,19 @@ sub isp_services {
     my $self = shift;
     my @n    = $self->service_names;
     return grep {$self->role($_) eq 'isp'} @n;
+}
+
+=head2 @names = $bal->lan_services
+
+Return list of service names that correspond to lans.
+Currently this is only tested with a single lan!!
+
+=cut
+
+sub lan_services {
+    my $self = shift;
+    my @n    = $self->service_names;
+    return grep {$self->role($_) eq 'lan'} @n;
 }
 
 =head2 @up = $bal->up(@up_services)
@@ -402,6 +427,13 @@ our $VERBOSE    = 0;
 our $DEBUG_ONLY = 0;
 
 # e.g. sh "ip route flush table main";
+=head2 $bal->sh(@args)
+
+Either pass @args to the shell for execution, or print to stdout, depending on
+setting of echo_only().
+
+=cut
+
 sub sh {
     my $self = shift;
     my @args  = @_;
@@ -415,6 +447,31 @@ sub sh {
 	system $arg;
     }
 }
+
+
+=head2 $bal->iptables(@args)
+
+Invoke sh() to call "iptables @args".
+
+=cut
+
+sub iptables {shift->sh('iptables',@_)}
+
+=head2 $bal->ip_route(@args)
+
+Invoke sh() to call "ip route @args".
+
+=cut
+
+sub ip_route {shift->sh('ip','route',@_)}
+
+=head2 $bal->ip_rule(@args)
+
+Invoke sh() to call "ip rule @args".
+
+=cut
+
+sub ip_rule {shift->sh('ip','rule',@_)}
 
 sub get_ppp_info {
     my $self     = shift;
@@ -554,10 +611,10 @@ ip rule add from all lookup default pref 32767
 END
     ;
 
-    $self->sh("ip route flush table ",$self->table($_)) foreach $self->isp_services;
+    $self->ip_route("flush table ",$self->table($_)) foreach $self->isp_services;
 
     # main table
-    $self->sh("ip route add ",$self->net($_),'dev',$self->dev($_),'src',$self->ip($_)) foreach $self->service_names;
+    $self->ip_route("add ",$self->net($_),'dev',$self->dev($_),'src',$self->ip($_)) foreach $self->service_names;
 }
 
 sub _create_default_route {
@@ -579,12 +636,12 @@ sub _create_default_route {
 	    $hops  .= "nexthop via $gw dev $dev weight 1 ";
 	}
 	die "no valid gateways!" unless $hops;
-	$self->sh("ip route add default scope global $hops");
+	$self->ip_route("add default scope global $hops");
     } 
 
     else {
 	print STDERR "# setting single default route via $up[0]n";
-	$self->sh("ip route add default via",$self->gw($up[0]),'dev',$self->dev($up[0]));
+	$self->ip_route("add default via",$self->gw($up[0]),'dev',$self->dev($up[0]));
     }
 
 }
@@ -594,12 +651,12 @@ sub _create_service_routing_tables {
 
     for my $svc ($self->isp_services) {
 	print STDERR "# creating routing table for $svc\n";
-	$self->sh('ip route add table',$self->table($svc),'default dev',$self->dev($svc),'via',$self->gw($svc));
+	$self->ip_route('add table',$self->table($svc),'default dev',$self->dev($svc),'via',$self->gw($svc));
 	for my $s ($self->service_names) {
-	    $self->sh('ip route add table',$self->table($svc),$self->net($s),'dev',$self->dev($s),'src',$self->ip($s));
+	    $self->ip_route('add table',$self->table($svc),$self->net($s),'dev',$self->dev($s),'src',$self->ip($s));
 	}
-	$self->sh('ip rule add from',$self->ip($svc),'table',$self->table($svc));
-	$self->sh('ip rule add fwmark',$self->fwmark($svc),'table',$self->table($svc));
+	$self->ip_rule('add from',$self->ip($svc),'table',$self->table($svc));
+	$self->ip_rule('add fwmark',$self->fwmark($svc),'table',$self->table($svc));
     }
 }
 
@@ -618,6 +675,91 @@ sub _extra_routing_rules {
 	    open my $fh,$f or die "Couldn't open $f: $!";
 	    $self->sh($_) while <$fh>;
 	    close $fh;
+	}
+    }
+}
+
+#########################
+# firewall rules
+#########################
+
+=head2 $bal->base_fw_rules()
+
+Set up basic firewall rules, including default rules and reporting
+
+=cut
+
+sub base_fw_rules {
+    my $self = shift;
+    $self->sh(<<END);
+iptables -F
+iptables -t nat    -F
+iptables -t mangle -F
+iptables -X
+iptables -P INPUT    DROP
+iptables -P OUTPUT   DROP
+iptables -P FORWARD  DROP
+END
+;
+    if ($self->iptables_verbose) {
+	print STDERR " #Setting up debugging logging\n";
+	$self->sh(<<END);	
+iptables -A INPUT    -j LOG  --log-prefix "INPUT: "
+iptables -A OUTPUT   -j LOG  --log-prefix "OUTPUT: "
+iptables -A FORWARD  -j LOG  --log-prefix "FORWARD: "
+iptables -t nat -A INPUT  -j LOG  --log-prefix "nat INPUT: "
+iptables -t nat -A OUTPUT -j LOG  --log-prefix "nat OUTPUT: "
+iptables -t nat -A FORWARD -j LOG  --log-prefix "nat FORWARD: "
+iptables -t nat -A PREROUTING  -j LOG  --log-prefix "nat PREROUTING: "
+iptables -t nat -A POSTROUTING -j LOG  --log-prefix "nat POSTROUTING: "
+iptables -t mangle -A INPUT       -j LOG  --log-prefix "mangle INPUT: "
+iptables -t mangle -A OUTPUT      -j LOG  --log-prefix "mangle OUTPUT: "
+iptables -t mangle -A FORWARD     -j LOG  --log-prefix "mangle FORWARD: "
+iptables -t mangle -A PREROUTING  -j LOG  --log-prefix "mangle PRE: "
+END
+;
+    }
+}
+
+sub balancing_fw_rules {
+    my $self = shift;
+
+    print STDERR "# balancing FW rules\n";
+
+    for my $svc ($self->isp_services) {
+	my $table = "MARK-${svc}";
+	my $mark  = $self->fwmark($svc);
+	next unless defined $mark && defined $table;
+	$self->sh(<<END);
+iptables -t mangle -N $table
+iptables -t mangle -A $table -j MARK     --set-mark $mark
+iptables -t mangle -A $table -j CONNMARK --save-mark
+END
+    }
+
+    my @up = $self->up;
+ 
+    # packets from LAN
+    for my $lan ($self->lan_services) {
+	my $landev = $self->dev($lan);
+	$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
+
+	
+	if (@up > 1) {
+	    print STDERR "# creating balanced mangling rules\n";
+	    my $count = @up;
+	    my $i = 1;
+	    for my $svc (@up) {
+		my $table = "MARK-${svc}";
+		my $probability = 1/$i++; # 1, 1/2, 1/3, 1/4...
+		$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -j $table");
+	    }
+	}
+
+	else {
+	    my $svc = $up[0];
+	    print STDERR "# forcing all traffic through $svc\n";
+	    $self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -j MARK-${svc}");
 	}
     }
 }
