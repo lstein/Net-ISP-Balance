@@ -8,7 +8,7 @@ use FindBin '$Bin';
 use IO::String;
 use lib $Bin,"$Bin/../lib";
 
-use Test::More tests=>20;
+use Test::More tests=>22;
 
 my $ifconfig_eth0=<<'EOF';
 eth0      Link encap:Ethernet  HWaddr 00:02:cb:88:4f:11  
@@ -94,6 +94,7 @@ ok($lsm_conf =~ /DSL {\n dev=ppp0/,'lsm device option correct');
 
 my $output = '';
 $bal->echo_only(1);
+$bal->rules_directory("$Bin/etc/balance");
 {
     tie *FOO,'IO::String',$output;
     local *STDOUT = \*FOO;
@@ -105,5 +106,6 @@ ok($output =~ m!echo 0 > /proc/sys/net/ipv4/ip_forward!,'correct forwarding sett
 ok($output=~/ip route add default scope global nexthop via 112.211.154.198 dev ppp0 weight 1 nexthop via 191.3.88.1 dev eth0 weight 1/,
    'correct default route creation');
 ok($output=~m!ip route add table 1 192.168.10.0/24 dev eth1 src 192.168.10.1!,'correct table addition');
-
+ok($output=~m!echo "01 local routing rules go here"\necho "02 local routes go here"\n!,'local rule addition');
+ok($output=~m!debug: DSL=>dev=ppp0\ndebug: CABLE=>dev=eth0!,'perl local rules working');
 

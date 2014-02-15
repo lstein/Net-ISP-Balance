@@ -72,10 +72,13 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  $bal->enable_forwarding(1);
 
  # the following customization files are scanned during execution
- # /etc/network/balance/local_ip.conf                 additional calls to "ip"
- # /etc/network/balance/local_ip.pl                   additional calls to "ip" written in perl
- # /etc/network/balance/local_iptables.conf           additional calls to "iptables"
- # /etc/network/balance/local_iptables.pl             additional calls to "iptables" written in perl
+ # /etc/network/balance/routes/01.my_vlan_rules.conf     additional calls to "ip" for setting routes
+ # /etc/network/balance/routes/02.my_gaming_rules.conf
+ # /etc/network/balance/routes/03.my_other_rules.pl      # perl scripts executed at route time
+ #             etc.
+ # /etc/network/balance/firewall/01.rules.conf           additional calls to "iptables"
+ # /etc/network/balance/firewall/02.rules.conf
+ # /etc/network/balance/firewall/03.rules.pl             additional calls to "iptables" written in perl
 
 
 =cut
@@ -110,6 +113,7 @@ sub new {
 	verbose   => 0,
 	echo_only => 0,
 	services  => {},
+	rules_directory => '/etc/network/balance',
 	dummy_data=>$dummy_test_data,
     },ref $class || $class;
 
@@ -117,6 +121,20 @@ sub new {
     $self->_collect_interfaces($interfaces);
 
     return $self;
+}
+
+=head2 $bal->rules_directory([$rules_directory])
+
+Directory in which *.conf and *.pl files containing additional routing and firewall
+rules can be found. Starts out as '/etc/network/balance'
+
+=cut
+
+sub rules_directory {
+    my $self = shift;
+    my $d   = $self->{rules_directory};
+    $self->{rules_directory} = shift if @_;
+    $d;
 }
 
 =head2 $bal->verbose([boolean]);
@@ -550,7 +568,7 @@ sub _create_default_route {
 
     # create multipath route
     if (@up > 1) { # multipath
-	print STDERR "# Setting multipath default gw\n";
+	print STDERR "# setting multipath default gw\n";
 	# EG
 	# ip route add default scope global nexthop via 192.168.10.1 dev eth0 weight 1 \
 	#                                   nexthop via 192.168.11.1 dev eth1 weight 1
@@ -565,7 +583,7 @@ sub _create_default_route {
     } 
 
     else {
-	print STDERR "#Setting single default route via $up[0]n";
+	print STDERR "# setting single default route via $up[0]n";
 	$self->sh("ip route add default via",$self->gw($up[0]),'dev',$self->dev($up[0]));
     }
 
@@ -575,7 +593,7 @@ sub _create_service_routing_tables {
     my $self = shift;
 
     for my $svc ($self->isp_services) {
-	print STDERR "#Creating routing table for $svc\n";
+	print STDERR "# creating routing table for $svc\n";
 	$self->sh('ip route add table',$self->table($svc),'default dev',$self->dev($svc),'via',$self->gw($svc));
 	for my $s ($self->service_names) {
 	    $self->sh('ip route add table',$self->table($svc),$self->net($s),'dev',$self->dev($s),'src',$self->ip($s));
@@ -587,6 +605,21 @@ sub _create_service_routing_tables {
 
 sub _extra_routing_rules {
     my $self = shift;
+    my $dir  = $self->rules_directory;
+    my @files = sort glob("$dir/routes/*");
+    for my $f (@files) {
+	print STDERR "# executing contents of $f\n";
+	next if $f =~ /(~|\.bak)$/ or $f=~/^#/;
+
+	if ($f =~ /\.pl$/) {  # perl script
+	    our $B = $self;
+	    do $f;
+	} else {
+	    open my $fh,$f or die "Couldn't open $f: $!";
+	    $self->sh($_) while <$fh>;
+	    close $fh;
+	}
+    }
 }
 
 1;
