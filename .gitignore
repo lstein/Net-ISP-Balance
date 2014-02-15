@@ -14,7 +14,7 @@ META.yml
 MYMETA.yml
 nytprof.out
 pm_to_blib
-lsm/.*.o
+lsm/*.o
 MYMETA.json
 *~
 *.bak

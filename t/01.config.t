@@ -5,9 +5,10 @@
 
 use strict;
 use FindBin '$Bin';
+use IO::String;
 use lib $Bin,"$Bin/../lib";
 
-use Test::More tests=>13;  
+use Test::More tests=>20;
 
 my $ifconfig_eth0=<<'EOF';
 eth0      Link encap:Ethernet  HWaddr 00:02:cb:88:4f:11  
@@ -84,4 +85,25 @@ is($i->{CABLE}{gw},'191.3.88.1','correct mapping of dhcp service to gw');
 ok(defined($i->{CABLE}{fwmark}),'balanced fwmark defined');
 ok(!defined($i->{LAN}{fwmark}),'non-balanced fwmark undefined');
 is($bal->dev('DSL'),'ppp0','shortcut working');
+is($bal->role('DSL'),'isp','isp role working');
+is($bal->role('LAN'),'lan','lan role working');
+
+my $lsm_conf = $bal->lsm_config_text(-warn_email  => 'admin@dummy_host.om');
+ok($lsm_conf =~ /warn_email=admin/,'lsm email option correct');
+ok($lsm_conf =~ /DSL {\n dev=ppp0/,'lsm device option correct');
+
+my $output = '';
+$bal->echo_only(1);
+{
+    tie *FOO,'IO::String',$output;
+    local *STDOUT = \*FOO;
+    $bal->enable_forwarding(0);
+    $bal->routing_rules;
+    untie *FOO;
+}
+ok($output =~ m!echo 0 > /proc/sys/net/ipv4/ip_forward!,'correct forwarding setting');
+ok($output=~/ip route add default scope global nexthop via 112.211.154.198 dev ppp0 weight 1 nexthop via 191.3.88.1 dev eth0 weight 1/,
+   'correct default route creation');
+ok($output=~m!ip route add table 1 192.168.10.0/24 dev eth1 src 192.168.10.1!,'correct table addition');
+
 

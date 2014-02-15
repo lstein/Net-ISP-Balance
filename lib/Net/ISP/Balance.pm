@@ -20,9 +20,7 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  $bal->echo_only(1);  # just echo commands to STDOUT; don't run them
  
  # get a configuration file for use with lsm link monitor
- my $lsm_conf = $bal->lsm_config_file(-checkip    => 'www.google.com',
-                                      -warn_email => 'root@localhost'
-    );
+ my $lsm_conf = $bal->lsm_config_text(-warn_email => 'root@localhost');
 
  # Get info about a service. Service names are defined in the configuration file.
  my $i = $bal->service('CABLE');
@@ -74,10 +72,11 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  $bal->enable_forwarding(1);
 
  # the following customization files are scanned during execution
- # /etc/network/balance/dnat_rules.conf               forward incoming connections to designated host(s)
- # /etc/network/balance/incoming_service_rules.conf   allow incoming services to the router
- # /etc/network/balance/local_routes.conf             additional routes
- # /etc/network/balance/local_rules.conf              additional firewall rules
+ # /etc/network/balance/local_ip.conf                 additional calls to "ip"
+ # /etc/network/balance/local_ip.pl                   additional calls to "ip" written in perl
+ # /etc/network/balance/local_iptables.conf           additional calls to "iptables"
+ # /etc/network/balance/local_iptables.pl             additional calls to "iptables" written in perl
+
 
 =cut
 
@@ -142,6 +141,45 @@ sub echo_only {
     $d;
 }
 
+=head2 @names = $bal->service_names
+
+=cut
+
+sub service_names {
+    my $self = shift;
+    my $s    = $self->services;
+    return keys %$s;
+}
+
+=head2 @names = $bal->isp_services
+
+Return list of service names that correspond to load-balanced ISPs.
+
+=cut
+
+sub isp_services {
+    my $self = shift;
+    my @n    = $self->service_names;
+    return grep {$self->role($_) eq 'isp'} @n;
+}
+
+=head2 @up = $bal->up(@up_services)
+
+Get or set the list of ISP interfaces that should be used for balancing.
+
+=cut
+
+sub up {
+    my $self = shift;
+    unless ($self->{up}) { # initialize with running services
+	my @svc = grep {$self->running($_)} $self->isp_services;
+	$self->{up} = \@svc;
+    }
+    my @up = @{$self->{up}};
+    $self->{up} = \@_ if @_;
+    return @up;
+}
+
 =head2 $services = $bal->services
 
 =cut
@@ -158,6 +196,29 @@ sub service {
 
 =head2 $dev = $bal->dev('CABLE')
 
+=head2 $ip = $bal->ip('CABLE')
+
+=head2 $gateway = $bal->gw('CABLE')
+
+=head2 $network = $bal->net('CABLE')
+
+=head2 $role = $bal->role('CABLE')
+
+Possible roles are "isp" and "lan". "isp" indicates an outgoing
+interface connected to an internet service provider. "lan" indicates a
+local interface connected to your network. Currently we expect there
+to be only one lan but this may chance in the fugure.
+
+=head2 $running = $bal->running('CABLE')
+
+=head2 $mark_number = $bal->fwmark('CABLE')
+
+=head2 $routing_table_number = $bal->table('CABLE')
+
+This is currently always the same as the fwmark to simplify debugging.
+
+=head2 $ping_dest   = $bal->ping('CABLE')
+
 =cut
 
 sub dev { shift->_service_field(shift,'dev') }
@@ -165,15 +226,85 @@ sub ip  { shift->_service_field(shift,'ip')  }
 sub gw  { shift->_service_field(shift,'gw')  }
 sub net { shift->_service_field(shift,'net')  }
 sub running { shift->_service_field(shift,'running')  }
+sub role   { shift->_service_field(shift,'role')  }
 sub fwmark { shift->_service_field(shift,'fwmark')  }
+sub table { shift->_service_field(shift,'table')  }
 sub ping   { shift->_service_field(shift,'ping')  }
-
 
 sub _service_field {
     my $self = shift;
     my ($service,$field) = @_;
     my $s = $self->{services}{$service} or return;
     $s->{$field};
+}
+
+=head2 $lsm_config_text = $bal->lsm_config_file(-warn_email=>'root@localhost')
+
+Possible switches and their defaults are:
+
+    -checkip                    127.0.0.1
+    -eventscript                /etc/network/lsm/balancer_event_script
+    -notifyscript               /etc/network/lsm/default_script
+    -max_packet_loss            15
+    -max_successive_pkts_lost    7
+    -min_packet_loss             5
+    -min_successive_pkts_rcvd   10
+    -interval_ms              1000
+    -timeout_ms               1000
+    -warn_email               root
+    -check_arp                   0
+    -sourceip                 <autodiscovered>
+    -device                   <autodiscovered>
+    -ttl                      0 <use system value>
+    -status                   1 <assume default up>
+    -debug                    8 <moderate verbosity from scale of 0 to 100>
+
+=cut
+
+sub lsm_config_text {
+    my $self = shift;
+    my %args = @_;
+    my %defaults = (
+                      -checkip              => '127.0.0.1',
+                      -debug                => 8,
+                      -eventscript          => '/etc/network/lsm/balancer_event_script',
+                      -notifyscript         => '/etc/network/lsm/default_script',
+                      -max_packet_loss      => 15,
+                      -max_successive_pkts_lost =>  7,
+                      -min_packet_loss          =>  5,
+                      -min_successive_pkts_rcvd =>  10,
+                      -interval_ms              => 1000,
+                      -timeout_ms               => 1000,
+                      -warn_email               => 'root',
+                      -check_arp                =>  0,
+                      -sourceip                 => undef,
+                      -device                   => undef,
+                      -ttl                      => 0,
+                      -status                   => 1
+	);
+    %defaults = (%defaults,%args);  # %args supersedes what's in %defaults
+
+    my $result = '';
+    $result   .= "debug=$defaults{-debug}\n";
+    delete $defaults{-debug};
+
+    $result .= "defaults {\n";
+    for my $option (sort keys %defaults) {
+	(my $o = $option) =~ s/^-//;
+	$result .= " $o=$defaults{$option}\n";
+    }
+    $result .= "}\n";
+
+    for my $svc ($self->isp_services) {
+	my $device = $self->dev($svc);
+	my $ping   = $self->ping($svc);
+	$result .= "$svc {\n";
+	$result .= " dev=$device\n";
+	$result .= " checkip=$ping\n";
+	$result .= "}\n";
+    }
+
+    return $result;
 }
 
 sub _parse_configuration_file {
@@ -184,10 +315,10 @@ sub _parse_configuration_file {
     while (<$f>) {
 	chomp;
 	next if /^\s*#/;
-	my ($service,$device,$action,$ping_dest) = split /\s+/;
-	next unless $service && $device && $action;
+	my ($service,$device,$role,$ping_dest) = split /\s+/;
+	next unless $service && $device && $role;
 	$services{$service}{dev}=$device;
-	$services{$service}{action}=$action;
+	$services{$service}{role}=$role;
 	$services{$service}{ping}=$ping_dest;
     }
     close $f;
@@ -223,7 +354,7 @@ sub _collect_interfaces {
     my $counter = 0;
     for my $dev (keys %iface_type) {
 	my $svc     = $devs{$dev} or next;
-	my $action = $svc ? $s->{$svc}{action} : '';
+	my $role  = $svc ? $s->{$svc}{role} : '';
 	my $type  = $iface_type{$dev};
 	my $info = $type eq 'static' ? $self->get_static_info($dev,$gw{$dev})
 	          :$type eq 'dhcp'   ? $self->get_dhcp_info($dev)
@@ -231,14 +362,14 @@ sub _collect_interfaces {
 		  :undef;
 	$info ||= {dev=>$dev,running=>0}; # not running
 	$info or die "Couldn't figure out how to get info from $dev";
-	if ($action eq 'balance') {
+	if ($role eq 'isp') {
 	    $counter++;
 	    $info->{fwmark} = $counter;
 	    $info->{table}  = $counter;
 	}
-	# ignore any interfaces that do not seem to be running
-	next unless $info->{running};
+	# next unless $info->{running};  # maybe we should do this?
 	$info->{ping} = $s->{$svc}{ping};
+	$info->{role} = $role;
 	$ifaces{$svc}=$info;
     }
     $self->{services} = \%ifaces;
@@ -255,7 +386,8 @@ our $DEBUG_ONLY = 0;
 # e.g. sh "ip route flush table main";
 sub sh {
     my $self = shift;
-    my $arg  = shift;
+    my @args  = @_;
+    my $arg   = join ' ',@args;
     chomp($arg);
     carp $arg   if $self->verbose;
     if ($self->echo_only) {
@@ -371,7 +503,91 @@ sub _ifconfig {
     return `ifconfig $device`;
 }
 
+#################################### here are the routing rules ###################
 
+=head2 $bal->enable_forwarding($boolean)
+
+=cut
+
+sub enable_forwarding {
+    my $self = shift;
+    my $enable = $_[0] ? 1 : 0;
+    $self->sh("echo $enable > /proc/sys/net/ipv4/ip_forward");
+}
+=head2 $bal->routing_rules()
+
+=cut
+
+sub routing_rules {
+    my $self = shift;
+    $self->_initialize_routes();
+    $self->_create_default_route();
+    $self->_create_service_routing_tables();
+    $self->_extra_routing_rules();
+}
+
+sub _initialize_routes {
+    my $self  = shift;
+    $self->sh(<<END);
+ip route flush all
+ip rule flush
+ip rule add from all lookup main pref 32766
+ip rule add from all lookup default pref 32767
+END
+    ;
+
+    $self->sh("ip route flush table ",$self->table($_)) foreach $self->isp_services;
+
+    # main table
+    $self->sh("ip route add ",$self->net($_),'dev',$self->dev($_),'src',$self->ip($_)) foreach $self->service_names;
+}
+
+sub _create_default_route {
+    my $self = shift;
+    my $D    = shift;
+
+    my @up = $self->up;
+
+    # create multipath route
+    if (@up > 1) { # multipath
+	print STDERR "# Setting multipath default gw\n";
+	# EG
+	# ip route add default scope global nexthop via 192.168.10.1 dev eth0 weight 1 \
+	#                                   nexthop via 192.168.11.1 dev eth1 weight 1
+	my $hops = '';
+	for my $svc (@up) {
+	    my $gw  = $self->gw($svc)  or next;
+	    my $dev = $self->dev($svc) or next;
+	    $hops  .= "nexthop via $gw dev $dev weight 1 ";
+	}
+	die "no valid gateways!" unless $hops;
+	$self->sh("ip route add default scope global $hops");
+    } 
+
+    else {
+	print STDERR "#Setting single default route via $up[0]n";
+	$self->sh("ip route add default via",$self->gw($up[0]),'dev',$self->dev($up[0]));
+    }
+
+}
+
+sub _create_service_routing_tables {
+    my $self = shift;
+
+    for my $svc ($self->isp_services) {
+	print STDERR "#Creating routing table for $svc\n";
+	$self->sh('ip route add table',$self->table($svc),'default dev',$self->dev($svc),'via',$self->gw($svc));
+	for my $s ($self->service_names) {
+	    $self->sh('ip route add table',$self->table($svc),$self->net($s),'dev',$self->dev($s),'src',$self->ip($s));
+	}
+	$self->sh('ip rule add from',$self->ip($svc),'table',$self->table($svc));
+	$self->sh('ip rule add fwmark',$self->fwmark($svc),'table',$self->table($svc));
+    }
+}
+
+sub _extra_routing_rules {
+    my $self = shift;
+}
 
 1;
 
