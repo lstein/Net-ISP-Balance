@@ -65,8 +65,8 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  $bal->routing_rules();
  $bal->base_fw_rules();
  $bal->balancing_fw_rules();
- $bal->outgoing_fw_rules();
- $bal->incoming_fw_rules();
+ $bal->spoof_and_flood_fw_rules();
+ $bal->nat_fw_rules();
  $bal->local_rules();
  $bal->enable_forwarding(1);
 
@@ -334,6 +334,7 @@ sub lsm_config_text {
     $result .= "defaults {\n";
     for my $option (sort keys %defaults) {
 	(my $o = $option) =~ s/^-//;
+	$defaults{$option} ||= ''; # avoid uninit var warnings
 	$result .= " $o=$defaults{$option}\n";
     }
     $result .= "}\n";
@@ -387,10 +388,10 @@ sub _collect_interfaces {
 	chomp;
 	if (/^\s*iface\s+(\w+)\s+inet\s+(\w+)/) {
 	    $iface_type{$1} = $2;
-	    $lastdev = $1;
+	    $lastdev        = $1;
 	}
 	if (/^\s*gateway\s+(\S+)/ && $lastdev) {
-	    $gw{$lastdev}=$1;
+	    $gw{$lastdev}   = $1;
 	}
     }
     close $f;
@@ -423,8 +424,6 @@ sub _collect_interfaces {
 # our @EXPORT    = @EXPORT_OK;
 
 our $VERSION    = 0.01;
-our $VERBOSE    = 0;
-our $DEBUG_ONLY = 0;
 
 # e.g. sh "ip route flush table main";
 =head2 $bal->sh(@args)
@@ -625,7 +624,7 @@ sub _create_default_route {
 
     # create multipath route
     if (@up > 1) { # multipath
-	print STDERR "# setting multipath default gw\n";
+	print STDERR "# setting multipath default gw\n" if $self->verbose;
 	# EG
 	# ip route add default scope global nexthop via 192.168.10.1 dev eth0 weight 1 \
 	#                                   nexthop via 192.168.11.1 dev eth1 weight 1
@@ -640,7 +639,7 @@ sub _create_default_route {
     } 
 
     else {
-	print STDERR "# setting single default route via $up[0]n";
+	print STDERR "# setting single default route via $up[0]n" if $self->verbose;
 	$self->ip_route("add default via",$self->gw($up[0]),'dev',$self->dev($up[0]));
     }
 
@@ -650,7 +649,7 @@ sub _create_service_routing_tables {
     my $self = shift;
 
     for my $svc ($self->isp_services) {
-	print STDERR "# creating routing table for $svc\n";
+	print STDERR "# creating routing table for $svc\n" if $self->verbose;
 	$self->ip_route('add table',$self->table($svc),'default dev',$self->dev($svc),'via',$self->gw($svc));
 	for my $s ($self->service_names) {
 	    $self->ip_route('add table',$self->table($svc),$self->net($s),'dev',$self->dev($s),'src',$self->ip($s));
@@ -665,7 +664,7 @@ sub _extra_routing_rules {
     my $dir  = $self->rules_directory;
     my @files = sort glob("$dir/routes/*");
     for my $f (@files) {
-	print STDERR "# executing contents of $f\n";
+	print STDERR "# executing contents of $f\n" if $self->verbose;
 	next if $f =~ /(~|\.bak)$/ or $f=~/^#/;
 
 	if ($f =~ /\.pl$/) {  # perl script
@@ -702,7 +701,7 @@ iptables -P FORWARD  DROP
 END
 ;
     if ($self->iptables_verbose) {
-	print STDERR " #Setting up debugging logging\n";
+	print STDERR " #Setting up debugging logging\n" if $self->verbose;
 	$self->sh(<<END);	
 iptables -A INPUT    -j LOG  --log-prefix "INPUT: "
 iptables -A OUTPUT   -j LOG  --log-prefix "OUTPUT: "
@@ -724,7 +723,7 @@ END
 sub balancing_fw_rules {
     my $self = shift;
 
-    print STDERR "# balancing FW rules\n";
+    print STDERR "# balancing FW rules\n" if $self->verbose;
 
     for my $svc ($self->isp_services) {
 	my $table = "MARK-${svc}";
@@ -738,15 +737,13 @@ END
     }
 
     my @up = $self->up;
- 
+
     # packets from LAN
     for my $lan ($self->lan_services) {
 	my $landev = $self->dev($lan);
-	$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
-
 	
 	if (@up > 1) {
-	    print STDERR "# creating balanced mangling rules\n";
+	    print STDERR "# creating balanced mangling rules\n" if $self->verbose;
 	    my $count = @up;
 	    my $i = 1;
 	    for my $svc (@up) {
@@ -758,10 +755,95 @@ END
 
 	else {
 	    my $svc = $up[0];
-	    print STDERR "# forcing all traffic through $svc\n";
+	    print STDERR "# forcing all traffic through $svc\n" if $self->verbose;
 	    $self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -j MARK-${svc}");
 	}
+
+	$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
     }
+
+    # inbound packets from WAN
+    for my $wan ($self->isp_services) {
+	my $dev = $self->dev($wan);
+	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate NEW -j MARK-${wan}");
+	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
+    }
+ 
+
+}
+
+=head2 $bal->spoof_and_flood_fw_rules()
+
+This creates a sensible series of firewall rules that seeks to prevent
+spoofing, flooding, and other antisocial behavior
+
+=cut
+
+sub spoof_and_flood_fw_rules {
+    my $self = shift;
+    $self->sh(<<END);
+# lo is ok
+iptables -A INPUT  -i lo -j ACCEPT
+iptables -A OUTPUT -o lo -j ACCEPT
+
+# kill connections to the local interface from the outside world
+iptables -A INPUT -d 127.0.0.0/8 -j DROPPERM
+
+# allow unlimited traffic from internal network using legit address
+iptables -A INPUT   -i $landev -s $lan -j ACCEPT
+
+# allow locally-generated output to the LAN on the LANDEV
+iptables -A OUTPUT  -o $landev -d $lan  -j ACCEPT
+iptables -A OUTPUT  -o $landev -d 255.255.255.255/32  -j ACCEPT
+
+# allow free forwarding to and from the DSL modem 
+iptables -A INPUT   -i $dslmodem_dev -s $dslmodem -j ACCEPT
+iptables -A OUTPUT  -o $dslmodem_dev -d $dslmodem -j ACCEPT
+iptables -A FORWARD -o $dslmodem_dev              -j ACCEPT
+iptables -t nat -A POSTROUTING -o $dslmodem_dev   -j MASQUERADE
+
+# accept continuing foreign traffic
+iptables -A INPUT   -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT   -p tcp --tcp-flags SYN,ACK ACK -j ACCEPT
+iptables -A FORWARD -p tcp --tcp-flags SYN,ACK ACK -j ACCEPT
+iptables -A FORWARD -p tcp --tcp-flags SYN,ACK,FIN,RST RST -j ACCEPT
+
+# ICMP rules -- we allow ICMP, but establish flood limits
+iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
+iptables -A INPUT -p icmp --icmp-type echo-request -j DROPFLOOD
+
+# deny icmp responses to our broadcast addresses
+# ??
+# iptables -A INPUT -p icmp -d \$BCAST -j DROPINVAL
+
+# allow other icmp in & out (is this a good idea?)
+#iptables -A INPUT  -p icmp -j ACCEPT
+#iptables -A OUTPUT -p icmp -j ACCEPT
+
+# any outgoing udp packet is fine with me
+iptables -A OUTPUT  -p udp -s $lan -j ACCEPT
+
+# domain
+iptables -A INPUT   -p udp --source-port domain -j ACCEPT
+iptables -A FORWARD -p udp --source-port domain -d $lan -j ACCEPT
+
+# time
+iptables -A INPUT   -p udp --source-port ntp -j ACCEPT
+iptables -A FORWARD -p udp --source-port ntp -d $lan -j ACCEPT
+END
+;
+
+    # allow lan/wan forwarding
+    for my $svc (keys %$D) {
+	next unless $D->{$svc}{table};
+	sh "iptables -A FORWARD  -i $landev -o $D->{$svc}{dev} -s $lan ! -d $lan -j ACCEPT";
+	sh "iptables -A OUTPUT   -o $D->{$svc}{dev}                    ! -d $lan -j ACCEPT";
+    }
+
+    # anything else is bizarre and should be dropped
+    sh "iptables -A OUTPUT  -j DROPSPOOF";
+    
 }
 
 1;

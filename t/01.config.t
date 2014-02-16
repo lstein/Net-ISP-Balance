@@ -38,8 +38,17 @@ eth1      Link encap:Ethernet  HWaddr 00:02:8f:91:11:11
           RX bytes:10860168129 (10.8 GB)  TX bytes:19336447379 (19.3 GB)
 EOF
 my $ifconfig_eth2=<<'EOF';
-eth1      Link encap:Ethernet  HWaddr 00:02:8f:91:11:12  
+eth2      Link encap:Ethernet  HWaddr 00:02:8f:91:11:12  
           inet addr:192.168.11.11  Bcast:192.168.11.255  Mask:255.255.255.0
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:24780338 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:25389079 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:10860168129 (10.8 GB)  TX bytes:19336447379 (19.3 GB)
+EOF
+my $ifconfig_eth3=<<'EOF';
+eth3      Link encap:Ethernet  HWaddr 00:02:8f:91:11:13  
+          inet addr:192.168.12.1  Bcast:192.168.12.255  Mask:255.255.255.0
           UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
           RX packets:24780338 errors:0 dropped:0 overruns:0 frame:0
           TX packets:25389079 errors:0 dropped:0 overruns:0 carrier:0
@@ -65,6 +74,7 @@ my $bal = Net::ISP::Balance->new("$Bin/etc/balancer.conf",
 				 ifconfig_eth0 => $ifconfig_eth0,
 				 ifconfig_eth1 => $ifconfig_eth1,
 				 ifconfig_eth2 => $ifconfig_eth2,
+				 ifconfig_eth3 => $ifconfig_eth3,
 				 ifconfig_ppp0 => $ifconfig_ppp0,
 				 leases_eth0   => $leases_eth0,
 				 }	       
@@ -73,7 +83,7 @@ ok($bal,"balancer object created");
 
 my $i = $bal->services;
 my @s = sort keys %$i;
-is("@s",'CABLE DSL LAN',"three services created");
+is("@s",'CABLE DSL LAN SUBNET',"four services created");
 
 is($i->{DSL}{dev},'ppp0','correct mapping of service to ppp device');
 is($i->{CABLE}{dev},'eth0','correct mapping of service to eth device');
