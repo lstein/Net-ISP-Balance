@@ -63,11 +63,12 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  # no routing outside the internal LAN will occur
  $bal->enable_forwarding(0);
  $bal->routing_rules();
+ $bal->local_routing_rules();
  $bal->base_fw_rules();
  $bal->balancing_fw_rules();
- $bal->spoof_and_flood_fw_rules();
+ $bal->sanity_fw_rules();
  $bal->nat_fw_rules();
- $bal->local_rules();
+ $bal->local_fw_rules();
  $bal->enable_forwarding(1);
 
  # the following customization files are scanned during execution
@@ -454,7 +455,16 @@ Invoke sh() to call "iptables @args".
 
 =cut
 
-sub iptables {shift->sh('iptables',@_)}
+my %seen_rule;
+
+sub iptables {
+    my $self = shift;
+    if (ref $_[0] eq 'ARRAY') {
+	$seen_rule{$_}++ || $self->sh('iptables',$_) foreach @{$_[0]};
+    } else {
+	$seen_rule{"@_"} || $self->sh('iptables',@_)
+    }
+}
 
 =head2 $bal->ip_route(@args)
 
@@ -597,7 +607,6 @@ sub routing_rules {
     $self->_initialize_routes();
     $self->_create_default_route();
     $self->_create_service_routing_tables();
-    $self->_extra_routing_rules();
 }
 
 sub _initialize_routes {
@@ -659,10 +668,36 @@ sub _create_service_routing_tables {
     }
 }
 
-sub _extra_routing_rules {
+=head2 $bal->local_routing_rules
+
+Execute tables and perl scripts found in the routes subdirectory
+
+=cut
+
+sub local_routing_rules {
     my $self = shift;
     my $dir  = $self->rules_directory;
     my @files = sort glob("$dir/routes/*");
+    $self->_execute_rules_files(@files);
+}
+
+=head2 $bal->local_fw_rules
+
+Execute tables and perl scripts found in the firewall subdirectory
+
+=cut
+
+sub local_fw_rules {
+    my $self = shift;
+    my $dir  = $self->rules_directory;
+    my @files = sort glob("$dir/firewall/*");
+    $self->_execute_rules_files(@files);
+}
+
+sub _execute_rules_files {
+    my $self = shift;
+    my @files = @_;
+
     for my $f (@files) {
 	print STDERR "# executing contents of $f\n" if $self->verbose;
 	next if $f =~ /(~|\.bak)$/ or $f=~/^#/;
@@ -670,6 +705,7 @@ sub _extra_routing_rules {
 	if ($f =~ /\.pl$/) {  # perl script
 	    our $B = $self;
 	    do $f;
+	    warn $@ if $@;
 	} else {
 	    open my $fh,$f or die "Couldn't open $f: $!";
 	    $self->sh($_) while <$fh>;
@@ -772,78 +808,127 @@ END
 
 }
 
-=head2 $bal->spoof_and_flood_fw_rules()
+=head2 $bal->sanity_fw_rules()
 
 This creates a sensible series of firewall rules that seeks to prevent
-spoofing, flooding, and other antisocial behavior
+spoofing, flooding, and other antisocial behavior. It also enables
+UDP-based network time and domain name service.
 
 =cut
 
-sub spoof_and_flood_fw_rules {
+sub sanity_fw_rules {
     my $self = shift;
-    $self->sh(<<END);
-# lo is ok
-iptables -A INPUT  -i lo -j ACCEPT
-iptables -A OUTPUT -o lo -j ACCEPT
 
-# kill connections to the local interface from the outside world
-iptables -A INPUT -d 127.0.0.0/8 -j DROPPERM
+    # if any of the devices are ppp, then we clamp the mss
+    my @ppp_devices = grep {/ppp\d+/} map {$self->dev($_)} $self->isp_services;
+    $self->iptables("-t mangle -A POSTROUTING -o $_ -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu")
+	foreach @ppp_devices;
 
-# allow unlimited traffic from internal network using legit address
-iptables -A INPUT   -i $landev -s $lan -j ACCEPT
+    # lo is ok
+    $self->iptables(['-A INPUT  -i lo -j ACCEPT',
+		     '-A OUTPUT -o lo -j ACCEPT',
+		     '-A INPUT -d 127.0.0.0/8 -j DROPPERM']);
 
-# allow locally-generated output to the LAN on the LANDEV
-iptables -A OUTPUT  -o $landev -d $lan  -j ACCEPT
-iptables -A OUTPUT  -o $landev -d 255.255.255.255/32  -j ACCEPT
+    # accept continuing foreign traffic
+    $self->iptables(['-A INPUT   -m state --state ESTABLISHED,RELATED -j ACCEPT',
+		     '-A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT',
+		     '-A INPUT   -p tcp --tcp-flags SYN,ACK ACK -j ACCEPT',
+		     '-A FORWARD -p tcp --tcp-flags SYN,ACK ACK -j ACCEPT',
+		     '-A FORWARD -p tcp --tcp-flags SYN,ACK,FIN,RST RST -j ACCEPT'
+		    ]);
 
-# allow free forwarding to and from the DSL modem 
-iptables -A INPUT   -i $dslmodem_dev -s $dslmodem -j ACCEPT
-iptables -A OUTPUT  -o $dslmodem_dev -d $dslmodem -j ACCEPT
-iptables -A FORWARD -o $dslmodem_dev              -j ACCEPT
-iptables -t nat -A POSTROUTING -o $dslmodem_dev   -j MASQUERADE
+    # we allow ICMP echo, but establish flood limits
+    $self->iptables(['-A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT',
+		     'iptables -A INPUT -p icmp --icmp-type echo-request -j DROPFLOOD']);
 
-# accept continuing foreign traffic
-iptables -A INPUT   -m state --state ESTABLISHED,RELATED -j ACCEPT
-iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
-iptables -A INPUT   -p tcp --tcp-flags SYN,ACK ACK -j ACCEPT
-iptables -A FORWARD -p tcp --tcp-flags SYN,ACK ACK -j ACCEPT
-iptables -A FORWARD -p tcp --tcp-flags SYN,ACK,FIN,RST RST -j ACCEPT
+    # establish expected traffic patterns between lan(s) and other interfaces
+    for my $lan ($self->lan_services) {
+	my $dev = $self->dev($lan);
+	my $net = $self->net($lan);
+	# allow unlimited traffic from internal network using legit address	
+	$self->iptables("-A INPUT   -i $dev -s $net -j ACCEPT");
 
-# ICMP rules -- we allow ICMP, but establish flood limits
-iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT
-iptables -A INPUT -p icmp --icmp-type echo-request -j DROPFLOOD
+	# allow locally-generated output to the LAN on the LANDEV
+	$self->iptables("-A OUTPUT  -o $dev -d $net  -j ACCEPT");
+	# and allow broadcasts to the lan
+	$self->iptables("-A OUTPUT  -o $dev -d 255.255.255.255/32  -j ACCEPT");
 
-# deny icmp responses to our broadcast addresses
-# ??
-# iptables -A INPUT -p icmp -d \$BCAST -j DROPINVAL
+	# any outgoing udp packet is fine with me
+	$self->iptables("-A OUTPUT  -p udp -s $net -j ACCEPT");
 
-# allow other icmp in & out (is this a good idea?)
-#iptables -A INPUT  -p icmp -j ACCEPT
-#iptables -A OUTPUT -p icmp -j ACCEPT
+	# allow domain and time services
+	$self->iptables(['-A INPUT   -p udp --source-port domain -j ACCEPT',
+			 "-A FORWARD -p udp --source-port domain -d $net -j ACCEPT"]);
 
-# any outgoing udp packet is fine with me
-iptables -A OUTPUT  -p udp -s $lan -j ACCEPT
+	# time
+	$self->iptables(['-A INPUT   -p udp --source-port ntp -j ACCEPT',
+			 "iptables -A FORWARD -p udp --source-port ntp -d $net -j ACCEPT"]);
 
-# domain
-iptables -A INPUT   -p udp --source-port domain -j ACCEPT
-iptables -A FORWARD -p udp --source-port domain -d $lan -j ACCEPT
-
-# time
-iptables -A INPUT   -p udp --source-port ntp -j ACCEPT
-iptables -A FORWARD -p udp --source-port ntp -d $lan -j ACCEPT
-END
-;
-
-    # allow lan/wan forwarding
-    for my $svc (keys %$D) {
-	next unless $D->{$svc}{table};
-	sh "iptables -A FORWARD  -i $landev -o $D->{$svc}{dev} -s $lan ! -d $lan -j ACCEPT";
-	sh "iptables -A OUTPUT   -o $D->{$svc}{dev}                    ! -d $lan -j ACCEPT";
+	# lan/wan forwarding
+	# allow lan/wan forwarding
+	for my $svc ($self->isp_services) {
+	    my $ispdev = $self->dev($svc);
+	    $self->iptables(["-A FORWARD  -i $dev -o $ispdev -s $net ! -d $net -j ACCEPT",
+			     "-A OUTPUT   -o $ispdev                 ! -d $net -j ACCEPT"]);
+	}
     }
 
     # anything else is bizarre and should be dropped
-    sh "iptables -A OUTPUT  -j DROPSPOOF";
-    
+    $self->iptables('-A OUTPUT  -j DROPSPOOF');
+}
+
+=head2 $bal->nat_fw_rules()
+
+Set up basic NAT rules for lan traffic over ISP
+
+=cut
+
+sub nat_fw_rules {
+    my $self = shift;
+    $self->iptables('-t nat -A POSTROUTING -o',$self->dev($_),'-j MASQUERADE')
+	foreach $self->isp_services;
+}
+
+=head2 $bal->forward($incoming_port,$destination_host,@protocols)
+
+Creates appropriate port/host forwarding rules. Destination host can
+accept any of these forms:
+
+  192.168.100.1       # forward to same port as incoming
+  192.168.100.1:8080  # forward to a different port on host
+
+Protocols are one or more of 'tcp','udp'. If omitted  defaults to tcp.
+
+Examples:
+  
+    $bal->forward(80 => '192.168.100.1');
+    $bal->forward(80 => '192.168.100.1:8080','tcp');
+
+=cut
+
+sub forward {
+    my $self = shift;
+    my ($port,$host,@protocols) = @_;
+    @protocols = ('tcp') unless @protocols;
+
+    my ($dhost,$dport)   = split ':',$host;
+    $dhost         ||= $host;
+    $dport         ||= $port;
+
+    my @dev = map {$self->dev($_)} $self->isp_services;
+
+    for my $protocol (@protocols) {
+	for my $d (@dev) {
+	    $self->iptables(["-A INPUT   -p $protocol --dport $port -j ACCEPT",
+			     "-A FORWARD -p $protocol --dport $port -j ACCEPT",
+			     "-t nat -A PREROUTING -i $d -p $protocol --dport $port -j DNAT --to-destination $host"]);
+	}
+	$self->iptables('-t nat -A POSTROUTING -p',$protocol,
+			'-d',$dhost,'--dport',$dport,
+			'-s',$self->net($_),
+			'-j','SNAT',
+			'--to',$self->ip($_)) foreach $self->lan_services;
+    }
 }
 
 1;
