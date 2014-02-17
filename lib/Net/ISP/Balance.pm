@@ -19,6 +19,17 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  $bal->verbose(1);    # verbosely print commands to STDERR before running them
  $bal->echo_only(1);  # just echo commands to STDOUT; don't run them
  
+ # generate routing and firewall commands
+ # the shell commands will be executed if echo_only() is false
+ # or they will be written to stdout   if echo_only() is true
+ $bal->set_routes_and_firewall();
+
+ # generate just routing rules
+ $bal->set_routes();
+
+ # generate just firewall rules
+ $bal->set_firewall();
+
  # get a configuration file for use with lsm link monitor
  my $lsm_conf = $bal->lsm_config_text(-warn_email => 'root@localhost');
 
@@ -588,6 +599,42 @@ sub _ifconfig {
 }
 
 #################################### here are the routing rules ###################
+
+=head2 $bal->set_routes_and_firewall
+
+=cut
+
+sub set_routes_and_firewall {
+    my $self = shift;
+    $self->enable_forwarding(0);
+    $self->set_routes();
+    $self->set_firewall();
+    $self->enable_forwarding(1);
+}
+
+=head2 $bal->set_routes
+
+=cut
+
+sub set_routes {
+    my $self = shift;
+    $self->routing_rules();
+    $self->local_routing_rules();
+}
+
+=head2 $bal->set_routes
+
+=cut
+
+sub set_firewall {
+    my $self = shift;
+    $self->base_fw_rules();
+    $self->balancing_fw_rules();
+    $self->sanity_fw_rules();
+    $self->nat_fw_rules();
+    $self->local_fw_rules();
+}
+
 
 =head2 $bal->enable_forwarding($boolean)
 
