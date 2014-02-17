@@ -5,6 +5,9 @@ use Net::Netmask;
 use IO::String;
 use Carp 'croak','carp';
 
+our $VERSION    = 0.01;
+
+
 =head1 NAME
 
 Net::ISP::Balance - Support load balancing across multiple internet service providers
@@ -340,24 +343,26 @@ sub lsm_config_text {
     %defaults = (%defaults,%args);  # %args supersedes what's in %defaults
 
     my $result = '';
-    $result   .= "debug=$defaults{-debug}\n";
+    $result   .= "debug=$defaults{-debug}\n\n";
     delete $defaults{-debug};
 
     $result .= "defaults {\n";
+    $result .= " name=defaults\n";
     for my $option (sort keys %defaults) {
 	(my $o = $option) =~ s/^-//;
 	$defaults{$option} ||= ''; # avoid uninit var warnings
 	$result .= " $o=$defaults{$option}\n";
     }
-    $result .= "}\n";
+    $result .= "}\n\n";
 
     for my $svc ($self->isp_services) {
 	my $device = $self->dev($svc);
 	my $ping   = $self->ping($svc);
-	$result .= "$svc {\n";
-	$result .= " dev=$device\n";
+	$result .= "connection {\n";
+	$result .= " name=$svc\n";
+	$result .= " device=$device\n";
 	$result .= " checkip=$ping\n";
-	$result .= "}\n";
+	$result .= "}\n\n";
     }
 
     return $result;
@@ -430,12 +435,6 @@ sub _collect_interfaces {
     }
     $self->{services} = \%ifaces;
 }
-
-# use base 'Exporter';
-#our @EXPORT_OK = qw(sh get_devices);
-# our @EXPORT    = @EXPORT_OK;
-
-our $VERSION    = 0.01;
 
 # e.g. sh "ip route flush table main";
 =head2 $bal->sh(@args)
@@ -781,6 +780,29 @@ iptables -X
 iptables -P INPUT    DROP
 iptables -P OUTPUT   DROP
 iptables -P FORWARD  DROP
+
+iptables -N DROPGEN
+iptables -A DROPGEN -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "GENERAL: "
+iptables -A DROPGEN -j DROP
+
+iptables -N DROPINVAL
+iptables -A DROPINVAL -j LOG -m limit --limit 1/minute --log-level 5 --log-prefix "INVALID: "
+iptables -A DROPINVAL -j DROP
+
+iptables -N DROPPERM
+iptables -A DROPPERM -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "ACCESS-DENIED: "
+iptables -A DROPPERM -j DROP
+
+iptables -N DROPSPOOF
+iptables -A DROPSPOOF -j LOG -m limit --limit 1/minute --log-level 3 --log-prefix "DROP-SPOOF: "
+iptables -A DROPSPOOF -j DROP
+
+iptables -N DROPFLOOD
+iptables -A DROPFLOOD -m limit --limit 1/minute  -j LOG --log-level 3 --log-prefix "DROP-FLOOD: "
+iptables -A DROPFLOOD -j DROP
+
+iptables -N DEBUG
+iptables -A DEBUG  -j LOG --log-level 3 --log-prefix "DEBUG: "
 END
 ;
     if ($self->iptables_verbose) {
@@ -865,6 +887,8 @@ UDP-based network time and domain name service.
 sub sanity_fw_rules {
     my $self = shift;
 
+    
+
     # if any of the devices are ppp, then we clamp the mss
     my @ppp_devices = grep {/ppp\d+/} map {$self->dev($_)} $self->isp_services;
     $self->iptables("-t mangle -A POSTROUTING -o $_ -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu")
@@ -885,7 +909,7 @@ sub sanity_fw_rules {
 
     # we allow ICMP echo, but establish flood limits
     $self->iptables(['-A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT',
-		     'iptables -A INPUT -p icmp --icmp-type echo-request -j DROPFLOOD']);
+		     '-A INPUT -p icmp --icmp-type echo-request -j DROPFLOOD']);
 
     # establish expected traffic patterns between lan(s) and other interfaces
     for my $lan ($self->lan_services) {
@@ -908,7 +932,7 @@ sub sanity_fw_rules {
 
 	# time
 	$self->iptables(['-A INPUT   -p udp --source-port ntp -j ACCEPT',
-			 "iptables -A FORWARD -p udp --source-port ntp -d $net -j ACCEPT"]);
+			 "-A FORWARD -p udp --source-port ntp -d $net -j ACCEPT"]);
 
 	# lan/wan forwarding
 	# allow lan/wan forwarding

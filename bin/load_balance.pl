@@ -2,20 +2,25 @@
 
 use strict;
 use Net::ISP::Balance;
+use Getopt::Long;
+
+my $DEBUG;
+my $result = GetOptions('debug' => \$DEBUG);
 
 # command line arguments correspond to the ISP services (defined in the config file)
 # that are "up". LAN services are assumed to be always up.
 
-@ARGV = qw(CABLE DSL) unless @ARGV;
+my $bal = Net::ISP::Balance->new();
+
+@ARGV = $bal->isp_services unless @ARGV;
 my %up_services = map {uc($_) => 1} @ARGV;
 my @up          = keys %up_services;
 
-my $bal = Net::ISP::Balance->new();
 $bal->up(@up);
-$bal->echo_only(1);
+$bal->echo_only($DEBUG);
 
 # start lsm process if it is not running
-start_lsm_if_needed($bal);
+start_lsm_if_needed($bal) unless $DEBUG;
 
 $bal->set_routes_and_firewall();
 exit 0;
@@ -23,7 +28,7 @@ exit 0;
 sub start_lsm_if_needed {
     my $bal = shift;
 
-    my $lsm_running = -e /var/run/lsm.pid && kill 0=>`cat /var/run/lsm.pid`;
+    my $lsm_running = -e '/var/run/lsm.pid' and kill 0=>`cat /var/run/lsm.pid`;
     return if $lsm_running;
 
     # need to create config file

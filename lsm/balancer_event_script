@@ -1,0 +1,34 @@
+#!/usr/bin/perl
+
+use Sys::Syslog;
+use warnings;
+use strict;
+
+my $state  = $ARGV[0];
+my $name   = $ARGV[1];
+my $device = $ARGV[3];
+my $srcip  = $ARGV[13];
+
+openlog('lsm-event','ndelay,pid','local0');
+syslog('warning',"$name ($device) is now $state. Fixing routing table");
+
+my @links = qw(DSL CABLE);
+open my $fh,'>',"/var/lib/lsm/${name}.state" or do { syslog('warning',"Couldn't open state file: $!"); die };
+print $fh $state;
+close $fh;
+
+my %state;
+for my $link (@links) {
+    open my $fh,'<',"/var/lib/lsm/${link}.state" or next;
+    my $state = <$fh>;
+    close $fh;
+    $state{$link}=$state;
+}
+
+my @up = grep {$state{$_} eq 'up'} keys %state;
+syslog('warning',"Calling /etc/network/load_balancer.pl @up");
+system "/etc/network/load_balance.pl @up";
+
+closelog();
+
+
