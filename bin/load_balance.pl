@@ -28,7 +28,7 @@ exit 0;
 sub start_lsm_if_needed {
     my $bal = shift;
 
-    my $lsm_running = -e '/var/run/lsm.pid' and kill 0=>`cat /var/run/lsm.pid`;
+    my $lsm_running = -e '/var/run/lsm.pid' && kill(0=>`cat /var/run/lsm.pid`);
     return if $lsm_running;
 
     # need to create config file

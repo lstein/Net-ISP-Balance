@@ -350,7 +350,7 @@ sub lsm_config_text {
     $result .= " name=defaults\n";
     for my $option (sort keys %defaults) {
 	(my $o = $option) =~ s/^-//;
-	$defaults{$option} ||= ''; # avoid uninit var warnings
+	$defaults{$option} = '' unless defined $defaults{$option}; # avoid uninit var warnings
 	$result .= " $o=$defaults{$option}\n";
     }
     $result .= "}\n\n";

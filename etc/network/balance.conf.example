@@ -1,0 +1,7 @@
+# Net::ISP::Balance configuration file
+# edit it as needed to describe your router setup
+
+#service    device   role     ping-ip
+#CABLE	    eth0     isp      173.194.43.95
+#DSL	    eth1     isp      173.194.43.95
+#LAN	    eth2     lan      
