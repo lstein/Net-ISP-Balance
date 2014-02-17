@@ -68,7 +68,7 @@ lease {
 EOF
 
 use_ok('Net::ISP::Balance');
-my $bal = Net::ISP::Balance->new("$Bin/etc/balancer.conf",
+my $bal = Net::ISP::Balance->new("$Bin/etc/balance.conf",
 			         "$Bin/etc/interfaces",
 				 {
 				 ifconfig_eth0 => $ifconfig_eth0,
@@ -103,7 +103,7 @@ ok($lsm_conf =~ /warn_email=admin/,'lsm email option correct');
 ok($lsm_conf =~ /DSL {\n dev=ppp0/,'lsm device option correct');
 
 $bal->echo_only(1);
-$bal->rules_directory("$Bin/etc/balancer");
+$bal->rules_directory("$Bin/etc/balance");
 my $output = capture(sub {$bal->enable_forwarding(0);
 			  $bal->routing_rules;
 			  $bal->local_routing_rules}
