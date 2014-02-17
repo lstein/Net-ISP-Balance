@@ -14,7 +14,7 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  use Net::ISP::Balance;
 
  # initialize the module with its configuration file
- my $bal = Net::ISP::Balance->new('/etc/network/balancer.conf');
+ my $bal = Net::ISP::Balance->new('/etc/network/balance.conf');
 
  $bal->verbose(1);    # verbosely print commands to STDERR before running them
  $bal->echo_only(1);  # just echo commands to STDOUT; don't run them
@@ -83,13 +83,13 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  $bal->enable_forwarding(1);
 
  # the following customization files are scanned during execution
- # /etc/network/balancer/routes/01.my_vlan_rules.conf     additional calls to "ip" for setting routes
- # /etc/network/balancer/routes/02.my_gaming_rules.conf
- # /etc/network/balancer/routes/03.my_other_rules.pl      # perl scripts executed at route time
+ # /etc/network/balance/routes/01.my_vlan_rules.conf     additional calls to "ip" for setting routes
+ # /etc/network/balance/routes/02.my_gaming_rules.conf
+ # /etc/network/balance/routes/03.my_other_rules.pl      # perl scripts executed at route time
  #             etc.
- # /etc/network/balancer/firewall/01.rules.conf           additional calls to "iptables"
- # /etc/network/balancer/firewall/02.rules.conf
- # /etc/network/balancer/firewall/03.rules.pl             additional calls to "iptables" written in perl
+ # /etc/network/balance/firewall/01.rules.conf           additional calls to "iptables"
+ # /etc/network/balance/firewall/02.rules.conf
+ # /etc/network/balance/firewall/03.rules.pl             additional calls to "iptables" written in perl
 
 
 =cut
@@ -106,7 +106,7 @@ Here are major methods that are recommended for users of this module.
 Creates a new balancer object. 
 
 The first optional argument is the balancer configuration file, defaults
-to /etc/network/balancer.conf.  
+to /etc/network/balance.conf.  
 
 The second optional argument is the system network interfaces file,
 defaulting to /etc/network/interfaces.
@@ -116,7 +116,7 @@ defaulting to /etc/network/interfaces.
 sub new {
     my $class = shift;
     my ($conf,$interfaces,$dummy_test_data)  = @_;
-    $conf       ||= '/etc/network/balancer.conf';
+    $conf       ||= '/etc/network/balance.conf';
     $interfaces ||= '/etc/network/interfaces';
     $conf       && -r $conf       || croak 'Must provide a readable configuration file path';
     $interfaces && -r $interfaces || croak 'Must provide a readable network interfaces path';

@@ -1,10 +1,10 @@
-bin/load_balancer.pl
+bin/load_balance.pl
 Build.PL
 etc/network/balance/firewall/01.forwardings.pl
 etc/network/balance/firewall/01.iptable_extras
 etc/network/balance/firewall/02.accept.pl
 etc/network/balance/routes/01.local_routes.conf
-etc/network/balancer.conf
+etc/network/balance.conf
 lib/Net/ISP/Balance.pm
 LICENSE
 lsm/cksum.c
@@ -49,5 +49,5 @@ t/etc/balance/firewall/02.accept.pl
 t/etc/balance/routes/01.local_routes.conf
 t/etc/balance/routes/02.local_routes.conf
 t/etc/balance/routes/03.local_rules.pl
-t/etc/balancer.conf
+t/etc/balance.conf
 t/etc/interfaces
