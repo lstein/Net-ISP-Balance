@@ -103,7 +103,7 @@ ok($lsm_conf =~ /warn_email=admin/,'lsm email option correct');
 ok($lsm_conf =~ /DSL {\n dev=ppp0/,'lsm device option correct');
 
 $bal->echo_only(1);
-$bal->rules_directory("$Bin/etc/balance");
+$bal->rules_directory("$Bin/etc/balancer");
 my $output = capture(sub {$bal->enable_forwarding(0);
 			  $bal->routing_rules;
 			  $bal->local_routing_rules}

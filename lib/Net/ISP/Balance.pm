@@ -83,13 +83,13 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  $bal->enable_forwarding(1);
 
  # the following customization files are scanned during execution
- # /etc/network/balance/routes/01.my_vlan_rules.conf     additional calls to "ip" for setting routes
- # /etc/network/balance/routes/02.my_gaming_rules.conf
- # /etc/network/balance/routes/03.my_other_rules.pl      # perl scripts executed at route time
+ # /etc/network/balancer/routes/01.my_vlan_rules.conf     additional calls to "ip" for setting routes
+ # /etc/network/balancer/routes/02.my_gaming_rules.conf
+ # /etc/network/balancer/routes/03.my_other_rules.pl      # perl scripts executed at route time
  #             etc.
- # /etc/network/balance/firewall/01.rules.conf           additional calls to "iptables"
- # /etc/network/balance/firewall/02.rules.conf
- # /etc/network/balance/firewall/03.rules.pl             additional calls to "iptables" written in perl
+ # /etc/network/balancer/firewall/01.rules.conf           additional calls to "iptables"
+ # /etc/network/balancer/firewall/02.rules.conf
+ # /etc/network/balancer/firewall/03.rules.pl             additional calls to "iptables" written in perl
 
 
 =cut
@@ -124,7 +124,7 @@ sub new {
 	verbose   => 0,
 	echo_only => 0,
 	services  => {},
-	rules_directory => '/etc/network/balance',
+	rules_directory => '/etc/network/balancer',
 	dummy_data=>$dummy_test_data,
     },ref $class || $class;
 
@@ -851,7 +851,6 @@ END
 	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate NEW -j MARK-${wan}");
 	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
     }
- 
 
 }
 
