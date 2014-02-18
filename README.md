@@ -41,34 +41,40 @@ generalizing the code to work with Red Hat-based systems that use
 Installation
 ============
 
-1. Download the zip file of the source code from
+<ol>
+<li> Download the zip file of the source code from
 https://github.com/lstein/Net-ISP-Balance, or use git to clone the
 repository. 
 
-2. Place the unpacked subdirectory in a home directory on the
+<li> Place the unpacked subdirectory in a home directory on the
 router/firewall machine.
 
-3. Check/install the following prerequisites on the router:
-
- a. C compiler and "make" tool. ("apt-get install build-essential" on
+<li> Check/install the following prerequisites on the router:
+<ul>
+ <li> C compiler and "make" tool. ("apt-get install build-essential" on
  Debian/Ubuntu systems will do this for you.)
 
- b. Perl version 5.8 or higher.
+ <li> Perl version 5.8 or higher.
+</ul>
 
-4. Enter the unpacked directory and run:
+<li> Enter the unpacked directory and run:
 
+<pre>
   perl ./Build.PL
   ./Build installdeps
   ./Build test
   sudo ./Build install
+</pre>
 
-5. Edit the configuration file located in /etc/network/balance.conf
+<li> Edit the configuration file located in /etc/network/balance.conf
 to meet your needs. The core of the file looks like this:
 
+<pre>
  #service    device   role     ping-ip
  CABLE	    eth0     isp      173.194.43.95
  DSL	    eth1     isp      173.194.43.95
  LAN	    eth2     lan      
+</pre>
 
 Each line of the table defines a "service" that corresponds to an ISP
 or a connected LAN. 
@@ -93,52 +99,62 @@ working. Choose a host that is not likely to go offline for reasons
 unrelated to your network connectivity, such as google.com, or the
 ISP's web site.
 
-6. (optional) Make edits to the firewall and route rules.
+<li> (optional) Make edits to the firewall and route rules.
 
 This mechanism allows you to add additional entries to the routing
 tables and/or firewall. See Further Configuration for more details.
 
-7. (optional) Run load_balance.pl in debug mode to see the commands it
+<li> (optional) Run load_balance.pl in debug mode to see the commands it
 will execute.
 
 If you wish to check how the balancing script will configure your
 system when you execute it, then run (as a regular user) the following
 command:
 
+<pre>
  /etc/network/load_balance.pl -d > commands.sh
+</pre>
 
 The "-d" argument puts the script into debug mode. All commands that
 it would run on your behalf are placed into 'commands.sh' for your
 inspection. You may also execute commands.sh to start balanced routing
 and firewalling:
 
+<pre>
  /bin/sh commands.sh
+</pre>
 
-8. Start the script running. Become the superuser and run
+<li> Start the script running. Become the superuser and run
 load_balance.pl:
 
+<pre>
  sudo /etc/network/load_balance.pl
+</pre>
 
 This will configure the system for load balancing, installing a
 restrictive set of firewall rules, and launch the lsm daemon to
 monitor each of the ISPs for activity.
 
-9. Arrange for load_balance.pl to be run on system startup time.
+<li> Arrange for load_balance.pl to be run on system startup time.
 
 You may do this by adding an entry in rc.local:
 
+</pre>
  if [ -x /etc/network/load_balance.pl ]; then
      /etc/network/load_balance.pl
  fi
+</pre>
 
 However, my preference is to invoke the script when the LAN interface
 comes up. Edit /etc/network/interfaces, find the reference to the LAN
 interface, and edit it to add a "post-up" option as shown here:
 
+</pre>
  auto eth2
  iface eth2 inet static
  ... blah blah ...
  post-up /etc/network/load_balance.pl
+</pre>
 
 Further Configuration
 =====================
