@@ -10,6 +10,8 @@ These scripts are designed to run on top of a Linux system, and have
 not been tested on Windows or Mac OSX. A typically network topology
 looks like this:
 
+<pre>
+
 
                                    Cable modem ------> ISP1
                                        ^
@@ -24,6 +26,7 @@ looks like this:
 
    Local Area Network(LAN)             |     Wide Area Network (WAN)
       
+</pre>
 
 The scripts run on the Linux-based router/firewall machine. In order
 to install, you must have the ability to run a shell on the router,
