@@ -149,7 +149,7 @@ However, my preference is to invoke the script when the LAN interface
 comes up. Edit /etc/network/interfaces, find the reference to the LAN
 interface, and edit it to add a "post-up" option as shown here:
 
-</pre>
+<pre>
  auto eth2
  iface eth2 inet static
  ... blah blah ...
@@ -166,8 +166,10 @@ by adding additional firewall rules and routes.
 
 The routes and rules are located in these subdirectories:
 
+<pre>
  /etc/network/balance/firewall       # firewall rules
  /etc/network/balance/routes         # routes
+</pre>
 
 Any files you put into these directories will be read in alphabetic
 order and added to the routes and/or firewall rules emitted by the
@@ -176,10 +178,11 @@ load balancing script.
 A typical routing rules file will look like the example shown
 below.
 
-(/etc/network/balance/routes/01.local_routes.conf)
-
+<i>/etc/network/balance/routes/01.local_routes.conf</i>
+<pre>
  ip route add 192.168.100.1  dev eth0 src 198.162.1.14
  ip route add 192.168.1.0/24 dev eth2 src 10.0.0.4
+</pre>
 
 Each line will be sent to the shell, and it is intended (but not
 required) that these be calls to the "ip" command. General shell
@@ -187,12 +190,14 @@ scripting constructs are not allowed here.
 
 A typical firewall rules file will look like the example shown here:
 
-(/etc/network/balance/firewall/01.iptables_extras)
-
+<i>/etc/network/balance/firewall/01.iptables_extras</i>
+<pre>
  # accept incoming telnet connections to the router
  iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT
+
  # masquerade connections to the DSL modem's control interface
  iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE
+</pre>
 
 You may also insert routing and firewall rules via fragments of Perl
 code, which is convenient because you don't have to hard-code any
@@ -200,12 +205,14 @@ network addresses and can make use of a variety of shortcuts. To do
 this, simply end the file's name with .pl and make it executable.
 
 Here's an example of a file named
-/etc/network/balance/01.forwardings.pl that defines a series of port
+<tt>/etc/network/balance/01.forwardings.pl</tt> that defines a series of port
 forwarding rules for incoming connections:
 
+<pre>
  $B->forward(80 => '192.168.10.35'); # forward port 80 to internal web server
  $B->forward(443=> '192.168.10.35'); # forward port 443 to 
  $B->forward(23 => '192.168.10.35:22'); # forward port 23 to ssh on  web sever
+</pre>
 
 The main thing to know is that on entry to the script the global
 variable $B will contain an initialized instance of a
@@ -220,7 +227,9 @@ Calling the Script by Hand
 You can invoke load_balance.pl from the command line to manually bring
 up and down ISP services. The format is simple:
 
+<pre>
  /etc/network/load_balance.pl ISP1 ISP2 ISP3 ...
+</pre>
 
 ISP1, etc are service names defined in the configuration file. All
 ISPs indicated on the command line will be maked as "up", others will
@@ -238,9 +247,11 @@ The script uses two tricks to balance. The first is to set up a
 multipath default routing destination as described at
 http://lartc.org/howto/lartc.rpdb.multiple-links.html
 
+<pre>
  ip route add default \
 	nexthop via 206.250.80.122  dev ppp0 weight 1 \
 	nexthop via 198.5.13.201    dev eth0 weight 1
+</pre>
 
 This balances network sessions originating from the router, but does
 not work for forwarded (NAT-ed) sessions from the LAN. To accomplish
@@ -249,10 +260,12 @@ outgoing connections, the firewall mark (fwmark) mechanism to select
 tables, and the iptables "mangle" chain to randomly select which
 ISP to use for outgoing connections:
 
+<pre>
  iptables -t mangle -A PREROUTING -i eth2 -m conntrack --ctstate NEW \
           -m statistic --mode random --probability 1 -j MARK-ISP1
  iptables -t mangle -A PREROUTING -i eth2 -m conntrack --ctstate NEW \
           -m statistic --mode random --probability 0.5 -j MARK-ISP2
+</pre>
 
 This strategy is described at
 https://home.regit.org/netfilter-en/links-load-balancing/.
@@ -267,12 +280,13 @@ Credits
 =======
 
 This package contains a slightly-modified version of Mika Ilmaranta's
-<ilmis at nullnet.fi> Link Status Monitor (lsm) package. The original
+&lt;ilmis at nullnet.fi&gt; Link Status Monitor (lsm) package. The original
 source code can be fond at http://lsm.foobar.fi/.
 
 
 Author
 ======
 
-Lincoln D. Stein <lincoln.stein@gmail.com>
+Lincoln D. Stein (lincoln.stein@gmail.com).
+
 Senior Principal Investigator, Ontario Institute for Cancer Research
