@@ -32,7 +32,8 @@ sub start_lsm_if_needed {
     return if $lsm_running;
 
     # need to create config file
-    if (! -e '/etc/network/lsm.conf') {
+    if (! -e '/etc/network/lsm.conf' || 
+	(-M '/etc/network/balance.conf' < -M '/etc/network/lsm.conf')) {
 	open my $fh,'>','/etc/network/lsm.conf' or die "/etc/network/lsm.conf: $!";
 	print $fh $bal->lsm_config_text();
 	close $fh or die "/etc/network/lsm.conf: $!";
