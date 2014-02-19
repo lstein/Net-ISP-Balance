@@ -5,8 +5,7 @@ use Net::Netmask;
 use IO::String;
 use Carp 'croak','carp';
 
-our $VERSION    = 0.01;
-
+our $VERSION    = 0.10;
 
 =head1 NAME
 
@@ -19,81 +18,36 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  # initialize the module with its configuration file
  my $bal = Net::ISP::Balance->new('/etc/network/balance.conf');
 
- $bal->verbose(1);    # verbosely print commands to STDERR before running them
- $bal->echo_only(1);  # just echo commands to STDOUT; don't run them
- 
- # generate routing and firewall commands
- # the shell commands will be executed if echo_only() is false
- # or they will be written to stdout   if echo_only() is true
- $bal->set_routes_and_firewall();
+ $bal->verbose(1);    # verbosely print routing and firewall 
+                      #  commands to STDERR before running them.
+ $bal->echo_only(1);  # echo commands to STDOUT; don't execute them.
 
- # generate just routing rules
- $bal->set_routes();
-
- # generate just firewall rules
- $bal->set_firewall();
-
- # get a configuration file for use with lsm link monitor
- my $lsm_conf = $bal->lsm_config_text(-warn_email => 'root@localhost');
-
- # Get info about a service. Service names are defined in the configuration file.
- my $i = $bal->service('CABLE');
- # x $i
- # {
- #    dev => 'eth0',
- #    ip  => '192.168.1.8',
- #    gw  => '192.168.1.1',
- #    net => '192.168.1.0/24',
- #    running  => 1,
- #    fwmark   => 1
- # }
-
- # equivalent method calls...
- $bal->dev('CABLE');
- $bal->ip('CABLE');
- $bal->gw('CABLE');
- $bal->net('CABLE');
- $bal->running('CABLE');
- $bal->fwmark('CABLE');
-
- # store which balanced ISP services are up and running
- # (usually determined by lsm and communicated via a small wrapper script)
- $bal->up('CABLE');
- $bal->up('DSL');
- $bal->up('SATELLITE');
- # or #
+ # mark the balanced services that are up
  $bal->up('CABLE','DSL','SATELLITE');
- 
- # retrieve which services are up
- # note this is not the same as running(), which indicates whether the
- # interface to the service is available
- @up = $bal->up();
 
- # top-level call to set up routes and firewall
+ # write out routing and firewall commands
  $bal->set_routes_and_firewall();
 
- # lower-level calls, invoked by set_routes_and_firewall()
- # must call up() first with list of ISP services to enable, otherwise
- # no routing outside the internal LAN will occur
- $bal->enable_forwarding(0);
- $bal->routing_rules();
- $bal->local_routing_rules();
- $bal->base_fw_rules();
- $bal->balancing_fw_rules();
- $bal->sanity_fw_rules();
- $bal->nat_fw_rules();
- $bal->local_fw_rules();
- $bal->enable_forwarding(1);
+ # write out a forwarding rule
+ $bal->forward(80 => '192.168.10.35');  # forward web requests to this host
 
- # the following customization files are scanned during execution
- # /etc/network/balance/routes/01.my_vlan_rules.conf     additional calls to "ip" for setting routes
- # /etc/network/balance/routes/02.my_gaming_rules.conf
- # /etc/network/balance/routes/03.my_other_rules.pl      # perl scripts executed at route time
- #             etc.
- # /etc/network/balance/firewall/01.rules.conf           additional calls to "iptables"
- # /etc/network/balance/firewall/02.rules.conf
- # /etc/network/balance/firewall/03.rules.pl             additional calls to "iptables" written in perl
+ # write out an arbitrary routing rule
+ $bal->ip_route('add 192.168.100.1  dev eth0 src 198.162.1.14');
 
+ # write out an arbitrary iptables rule
+ $bal->iptables('-A INCOMING -p tcp --dport 6000 -j REJECT');
+
+ # get information about all services
+ my @s = $bal->service_names;
+ for my $s (@s) {
+    print $bal->dev($s);
+    print $bal->ip($s);
+    print $bal->gw($s);
+    print $bal->net($s);
+    print $bal->fwmark($s);
+    print $bal->table($s);
+    print $bal->running($s);
+ }
 
 =cut
 
@@ -119,15 +73,15 @@ defaulting to /etc/network/interfaces.
 sub new {
     my $class = shift;
     my ($conf,$interfaces,$dummy_test_data)  = @_;
-    $conf       ||= '/etc/network/balance.conf';
-    $interfaces ||= '/etc/network/interfaces';
+    $conf       ||= $class->default_conf_file;
+    $interfaces ||= $class->default_interface_file;
     $conf       && -r $conf       || croak 'Must provide a readable configuration file path';
     $interfaces && -r $interfaces || croak 'Must provide a readable network interfaces path';
     my $self  = bless {
 	verbose   => 0,
 	echo_only => 0,
 	services  => {},
-	rules_directory => '/etc/network/balancer',
+	rules_directory => $class->default_rules_directory,
 	dummy_data=>$dummy_test_data,
     },ref $class || $class;
 
@@ -135,6 +89,27 @@ sub new {
     $self->_collect_interfaces($interfaces);
 
     return $self;
+}
+
+sub default_conf_file {
+    my $self = shift;
+    return '/etc/network/balance.conf'                   if -d '/etc/network';
+    return '/etc/sysconfig/network-scripts/balance.conf' if -d '/etc/sysconfig/network-scripts';
+    return '/etc/balance.conf';
+}
+
+sub default_interface_file {
+    my $self = shift;
+    return '/etc/network/interfaces'        if -d '/etc/network';
+    return '/etc/sysconfig/network-scripts' if -d '/etc/sysconfig/network-scripts';
+    die "I don't know where to find network interface configuration files on this system";
+}
+
+sub default_rules_directory {
+    my $self = shift;
+    return '/etc/network/balancer'                   if -d '/etc/network';
+    return '/etc/sysconfig/network-scripts/balancer' if -d '/etc/sysconfig/network-scripts';
+    die "I don't know where to place the balancer rules on this system";
 }
 
 =head2 $bal->rules_directory([$rules_directory])
@@ -398,7 +373,11 @@ sub _collect_interfaces {
     my $self = shift;
     my $interfaces = shift;
     my $s    = $self->{svc_config} or return;
-    my (%ifaces,%iface_type,$lastdev,%gw,%devs);
+
+    my ($iface_type,$gateways) = -f $interfaces ? $self->_get_debian_ifcfg($interfaces)   # 'network/interfaces' file
+                                                : $self->_get_centos_ifcfg($interfaces);  # 'network-scripts/ifcfg-*' files
+                               
+    my (%ifaces,%devs);
 
     # map devices to services
     for my $svc (keys %$s) {
@@ -406,26 +385,12 @@ sub _collect_interfaces {
 	$devs{$dev}=$svc;
     }
 
-    # use /etc/network/interfaces to figure out what kind of
-    # device each is.
-    open my $f,$interfaces or die "$interfaces: $!";
-    while (<$f>) {
-	chomp;
-	if (/^\s*iface\s+(\w+)\s+inet\s+(\w+)/) {
-	    $iface_type{$1} = $2;
-	    $lastdev        = $1;
-	}
-	if (/^\s*gateway\s+(\S+)/ && $lastdev) {
-	    $gw{$lastdev}   = $1;
-	}
-    }
-    close $f;
     my $counter = 0;
-    for my $dev (keys %iface_type) {
+    for my $dev (keys %$iface_type) {
 	my $svc     = $devs{$dev} or next;
 	my $role  = $svc ? $s->{$svc}{role} : '';
-	my $type  = $iface_type{$dev};
-	my $info = $type eq 'static' ? $self->get_static_info($dev,$gw{$dev})
+	my $type  = $iface_type->{$dev};
+	my $info = $type eq 'static' ? $self->get_static_info($dev,$gateways->{$dev})
 	          :$type eq 'dhcp'   ? $self->get_dhcp_info($dev)
 	          :$type eq 'ppp'    ? $self->get_ppp_info($dev)
 		  :undef;
@@ -442,6 +407,63 @@ sub _collect_interfaces {
 	$ifaces{$svc}=$info;
     }
     $self->{services} = \%ifaces;
+}
+
+sub _get_debian_ifcfg {
+    my $self = shift;
+    my $interfaces = shift;
+
+    my (%iface_type,%gw,$lastdev);
+    
+    # use /etc/network/interfaces to figure out what kind of
+    # device each is.
+    open my $f,$interfaces or die "$interfaces: $!";
+    while (<$f>) {
+	chomp;
+	if (/^\s*iface\s+(\w+)\s+inet\s+(\w+)/) {
+	    $iface_type{$1} = $2;
+	    $lastdev        = $1;
+	}
+	if (/^\s*gateway\s+(\S+)/ && $lastdev) {
+	    $gw{$lastdev}   = $1;
+	}
+    }
+    close $f;
+    return (\%iface_type,\%gw);
+}
+
+sub _get_centos_ifcfg {
+    my $self = shift;
+    my $interfaces = shift;
+
+    my (%ifcfg,%iface_type,%gw);
+
+    # collect all "ifcfg-* files";
+    opendir my $dh,$interfaces or die "Can't open $interfaces for reading: $!";
+    while (my $entry = readdir($dh)) {
+	next if $entry =~ /^\./;
+	next unless $entry =~ /ifcfg-.*(\w+)$/;
+	$ifcfg{$entry} = $1;
+    }
+    closedir $dh;
+    for my $entry (keys %ifcfg) {
+	my $file = "$interfaces/$entry";
+	my $dev  = $ifcfg{$entry};
+	open my $fh,$file or die "$file: $!";
+	while (<$fh>) {
+	    chomp;
+	    if (/^GATEWAY\s*=\s*(\S+)/) {
+		$gw{$dev}=$1;
+	    }
+	    if (/^BOOTPROTO\s*=\s*(\w+)/) {
+		$iface_type{$dev} = $1 eq 'dhcp' ? 'dhcp' : 'static';
+	    }
+	}
+	$iface_type{$dev} = 'ppp' if $dev =~ /^ppp\d+/;  # hack 'cause no other way to figure it out
+	close $fh;
+    }
+
+    return (\%iface_type,\%gw);
 }
 
 # e.g. sh "ip route flush table main";
@@ -516,6 +538,8 @@ sub get_ppp_info {
 	    net => "$block",
 	    fwmark => undef,};
 }
+
+
 
 sub get_static_info {
     my $self     = shift;
