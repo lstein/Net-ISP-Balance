@@ -8,16 +8,6 @@ my $class = Module::Build->subclass(code=><<'EOF');
 use File::Find 'find';
 use File::Basename 'basename';
 
-sub ACTION_build {
-    my $self = shift;
-    my $dir  = $self->base_dir();
-    $self->SUPER::ACTION_build();
-    chomp(my $make  = `which make`);
-    chomp(my $nmake = `which nmake`);
-    $make ||= $nmake;
-    system "cd lsm; $make; cd $dir";
-}
-
 sub ACTION_clean {
     my $self = shift;
     my $dir  = $self->base_dir();
@@ -30,12 +20,18 @@ sub ACTION_install {
     my $self = shift;
     my $dir  = $self->base_dir();
     $self->SUPER::ACTION_install();
-    system "cd lsm; make install; cd $dir";
-    # my $dest = -e '/etc/network/balancer.conf' ? '/etc/network/balancer.conf.pkg-dist'
-    # 	:  '/etc/network/balancer.conf';
-    # $self->copy_if_modified(from   => './blib/etc/network/balancer.conf',
-    # 			    to     => $dest);
+    mkdir '/var/lib/lsm';
     }
+
+sub process_lsm_files {
+     my $self = shift;
+     my $dir  = $self->base_dir();
+     $self->SUPER::ACTION_build();
+     chomp(my $make  = `which make 2>/dev/null`);
+     chomp(my $nmake = `which nmake 2>/dev/null`);
+     $make ||= $nmake;
+     system "cd lsm; $make install; cd $dir";
+}
 
 sub process_etc_files {
     my $self = shift;
@@ -60,13 +56,19 @@ my $build = $class->new(
     dist_author       => 'Lincoln Stein <lincoln.stein@gmail.com>',
     configure_requires => { 'Module::Build' => 0 },
     requires          => {
-      'Net::Netmask'    => 0,
+      'Net::Netmask'  => 0,
+      'IO::String'    => 0,
     },
     );
 
+my $install_etc =  -d '/etc/network'                   ? '/etc/network'
+                 : -d '/etc/sysconfig/network-scripts' ? '/etc/sysconfig/network-scripts'
+                 : '/etc/';
+
 $build->add_build_element('etc');
-$build->install_path('etc'    => '/etc');
-$build->install_path('bin'=> '/etc/network');
-$build->install_path('script'=> '/etc/network');
+$build->add_build_element('lsm');
+$build->install_path('etc'       => $install_etc);
+$build->install_path('bin'       => '/usr/local/bin');
+$build->install_path('script'    => $install_etc);
 $build->create_build_script;
 exit 0;

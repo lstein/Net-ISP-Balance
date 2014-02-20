@@ -42,12 +42,9 @@ Makefile.depend: *.c *.h Makefile
 	$(CC) -MM *.c > $@
 
 install: lsm
-	mkdir -p /var/lib/lsm
-	mkdir -p /etc/network/lsm
-	install -o root -g root -m u=rwx lsm /usr/local/bin
-	install -o root -g root -m u=rwx,go=r default_script        /etc/network/lsm
-	install -o root -g root -m u=rwx,go=r balancer_event_script /etc/network/lsm
+	mkdir -p ../blib/etc/lsm
+	mkdir -p ../blib/bin
+	install -m u=rwx,go=x     lsm ../blib/bin/
+	install -m u=rwx,go=r default_script balancer_event_script ../blib/etc/lsm/
 
 -include Makefile.depend
-
-#

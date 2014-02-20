@@ -100,7 +100,7 @@ is($bal->role('LAN'),'lan','lan role working');
 
 my $lsm_conf = $bal->lsm_config_text(-warn_email  => 'admin@dummy_host.om');
 ok($lsm_conf =~ /warn_email=admin/,'lsm email option correct');
-ok($lsm_conf =~ /DSL {\n dev=ppp0/,'lsm device option correct');
+ok($lsm_conf =~ /connection {\n name=DSL\n device=ppp0/,'lsm device option correct');
 
 $bal->echo_only(1);
 $bal->rules_directory("$Bin/etc/balance");
