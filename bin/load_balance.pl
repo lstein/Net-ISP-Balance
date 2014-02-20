@@ -50,12 +50,15 @@ sub start_lsm_if_needed {
     my $lsm_running = -e '/var/run/lsm.pid' && kill(0=>`cat /var/run/lsm.pid`);
     return if $lsm_running;
 
+    my $lsm_conf = $bal->lsm_conf_file;
+    my $bal_conf = $bal->bal_conf_file;
+
     # need to create config file
-    if (! -e '/etc/network/lsm.conf' || 
-	(-M '/etc/network/balance.conf' < -M '/etc/network/lsm.conf')) {
-	open my $fh,'>','/etc/network/lsm.conf' or die "/etc/network/lsm.conf: $!";
+    if (! -e $lsm_conf || 
+	(-M $bal_conf < -M $lsm_conf)) {
+	open my $fh,'>',$lsm_conf or die "$lsm_conf: $!";
 	print $fh $bal->lsm_config_text();
-	close $fh or die "/etc/network/lsm.conf: $!";
+	close $fh or die "$lsm_conf: $!";
     }
 
     # now start the process

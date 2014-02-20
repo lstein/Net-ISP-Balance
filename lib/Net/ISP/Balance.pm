@@ -82,6 +82,8 @@ sub new {
 	echo_only => 0,
 	services  => {},
 	rules_directory => $class->default_rules_directory,
+	lsm_conf_file   => $class->default_lsm_conf_file,
+	bal_conf_file   => $conf,
 	dummy_data=>$dummy_test_data,
     },ref $class || $class;
 
@@ -107,9 +109,16 @@ sub default_interface_file {
 
 sub default_rules_directory {
     my $self = shift;
-    return '/etc/network/balancer'                   if -d '/etc/network';
-    return '/etc/sysconfig/network-scripts/balancer' if -d '/etc/sysconfig/network-scripts';
+    return '/etc/network/balance'                   if -d '/etc/network';
+    return '/etc/sysconfig/network-scripts/balance' if -d '/etc/sysconfig/network-scripts';
     die "I don't know where to place the balancer rules on this system";
+}
+
+sub default_lsm_conf_file {
+    my $self = shift;
+    return '/etc/network/lsm.conf'                   if -d '/etc/network';
+    return '/etc/sysconfig/network-scripts/lsm.conf' if -d '/etc/sysconfig/network-scripts';
+    return '/etc/lsm.conf';
 }
 
 =head2 $bal->rules_directory([$rules_directory])
@@ -123,6 +132,20 @@ sub rules_directory {
     my $self = shift;
     my $d   = $self->{rules_directory};
     $self->{rules_directory} = shift if @_;
+    $d;
+}
+
+sub lsm_conf_file {
+    my $self = shift;
+    my $d   = $self->{lsm_conf_file};
+    $self->{lsm_conf_file} = shift if @_;
+    $d;
+}
+
+sub bal_conf_file {
+    my $self = shift;
+    my $d   = $self->{bal_conf_file};
+    $self->{bal_conf_file} = shift if @_;
     $d;
 }
 
