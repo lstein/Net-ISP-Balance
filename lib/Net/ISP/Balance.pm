@@ -465,13 +465,14 @@ sub _get_centos_ifcfg {
     opendir my $dh,$interfaces or die "Can't open $interfaces for reading: $!";
     while (my $entry = readdir($dh)) {
 	next if $entry =~ /^\./;
-	next unless $entry =~ /ifcfg-.*(\w+)$/;
+	next unless $entry =~ /ifcfg-(?:Auto_)?(\w+)$/;
 	$ifcfg{$entry} = $1;
     }
     closedir $dh;
     for my $entry (keys %ifcfg) {
 	my $file = "$interfaces/$entry";
 	my $dev  = $ifcfg{$entry};
+	my $realdevice;
 	open my $fh,$file or die "$file: $!";
 	while (<$fh>) {
 	    chomp;
@@ -481,9 +482,22 @@ sub _get_centos_ifcfg {
 	    if (/^BOOTPROTO\s*=\s*(\w+)/) {
 		$iface_type{$dev} = $1 eq 'dhcp' ? 'dhcp' : 'static';
 	    }
+	    if (/^DEVICE\s*=\s*(\w+)/) {
+		$realdevice = $1;
+	    }
 	}
 	$iface_type{$dev} = 'ppp' if $dev =~ /^ppp\d+/;  # hack 'cause no other way to figure it out
 	close $fh;
+
+	# I don't know if this can happen in RHL/CentOS, but ifcfg* files can
+	# have a DEVICE entry that may not necessarily match the file name. Arrrgh!
+	if ($realdevice && $realdevice ne $dev) {
+	    $iface_type{$realdevice}=$iface_type{$dev};
+	    $gw{$realdevice}=$gw{$realdevice};
+	    delete $iface_type{$dev};
+	    delete $gw{$dev};
+	}
+
     }
 
     return (\%iface_type,\%gw);
@@ -623,7 +637,7 @@ sub get_dhcp_info {
 sub find_dhclient_leases {
     my $self     = shift;
     my $device = shift;
-    my @locations = ('/var/lib/NetworkManager','/var/lib/dhcp');
+    my @locations = ('/var/lib/NetworkManager','/var/lib/dhcp','/var/lib/dhclient');
     for my $l (@locations) {
 	my @matches = glob("$l/dhclient*$device.lease*");
 	next unless @matches;
