@@ -243,8 +243,8 @@ network addresses and can make use of a variety of shortcuts. To do
 this, simply end the file's name with .pl and make it executable.
 
 Here's an example of a file named
-<tt>balance/firewall/01.forwardings.pl</tt> that defines a series of port
-forwarding rules for incoming connections:
+<tt>balance/firewall/01.forwardings.pl</tt> that defines a series of
+port forwarding rules for incoming connections:
 
 <pre>
  $B->forward(80 => '192.168.10.35'); # forward port 80 to internal web server

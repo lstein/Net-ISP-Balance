@@ -53,9 +53,10 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
 
 use Carp;
 
-=head1 METHODS
+=head1 CLASS METHODS
 
-Here are major methods that are recommended for users of this module.
+Here are the class methods for this module that can be called on the
+class name.
 
 =head2 $bal = Net::ISP::Balance->new('/path/to/config_file.conf','/path/to/interfaces');
 
@@ -112,8 +113,11 @@ sub default_conf_file {
 
 =head2 $file_or_dir = Net::ISP::Balance->default_interface_file
 
-Returns the path to the default configuration file,
-$ETC_NETWORK/balance.conf.
+Returns the path to the place where the system stores its network
+configuration information. On Ubuntu/Debian-derived systems, this will
+be the file /etc/network/interfaces. On RedHad/CentOS-derived systems,
+this is the directory named /etc/sysconfig/network-scripts/ which
+contains a series of ifcfg-* files.
 
 =cut
 
@@ -124,12 +128,81 @@ sub default_interface_file {
     die "I don't know where to find network interface configuration files on this system";
 }
 
+=head2 $dir = Net::ISP::Balance->default_rules_directory
+
+Returns the path to the directory where the additional router and
+firewall rules are stored. On Ubuntu-Debian-derived systems, this is
+/etc/network/balance/. On RedHat/CentOS systems, this is
+/etc/sysconfig/network-scripts/balance/.
+
+Contained in this directory are subdirectories named "routes" and
+"firewall". The former contains a series of files or perl scripts that
+define additional routing rules. The latter contains files or perl
+scripts that define additional firewall rules.
+
+Any files you put into these directories will be read in alphabetic
+order and added to the routes and/or firewall rules emitted by the
+load balancing script.
+
+A typical routing rules file will look like the example shown
+below.
+
+ # file: /etc/network/balance/01.my_routes
+ ip route add 192.168.100.1  dev eth0 src 198.162.1.14
+ ip route add 192.168.1.0/24 dev eth2 src 10.0.0.4
+
+Each line will be sent to the shell, and it is intended (but not
+required) that these be calls to the "ip" command. General shell
+scripting constructs are not allowed here.
+
+A typical firewall rules file will look like the example shown here:
+
+ # file: /etc/network/firewall/01.my_firewall_rules
+
+ # accept incoming telnet connections to the router
+ iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT
+
+ # masquerade connections to the DSL modem's control interface
+ iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE
+
+You may also insert routing and firewall rules via fragments of Perl
+code, which is convenient because you don't have to hard-code any
+network addresses and can make use of a variety of shortcuts. To do
+this, simply end the file's name with .pl and make it executable.
+
+Here's an example that defines a series of port forwarding rules for
+incoming connections:
+
+ # file: /etc/network/firewall/02.forwardings.pl 
+
+ $B->forward(80 => '192.168.10.35'); # forward port 80 to internal web server
+ $B->forward(443=> '192.168.10.35'); # forward port 443 to 
+ $B->forward(23 => '192.168.10.35:22'); # forward port 23 to ssh on  web sever
+
+The main thing to know is that on entry to the script the global
+variable $B will contain an initialized instance of a
+Net::ISP::Balance object. You may then make method calls on this
+object to emit firewall and routing rules.
+
+=cut
+
 sub default_rules_directory {
     my $self = shift;
     return '/etc/network/balance'                   if -d '/etc/network';
     return '/etc/sysconfig/network-scripts/balance' if -d '/etc/sysconfig/network-scripts';
     die "I don't know where to place the balancer rules on this system";
 }
+
+=head2 $file = Net::ISP::Balance->default_lsm_conf_file
+
+Returns the path to the place where we should store lsm.conf, the file
+used to configure the lsm (link status monitor) application.
+
+On Ubuntu/Debian-derived systems, this will be the file
+/etc/network/lsm.conf. On RedHad/CentOS-derived systems, this will be
+/etc/sysconfig/network-scripts/lsm.conf.
+
+=cut
 
 sub default_lsm_conf_file {
     my $self = shift;
@@ -138,6 +211,15 @@ sub default_lsm_conf_file {
     return '/etc/lsm.conf';
 }
 
+=head2 $dir = Net::ISP::Balance->default_lsm_scripts_dir
+
+Returns the path to the place where lsm stores its helper scripts.  On
+Ubuntu/Debian-derived systems, this will be the directory
+/etc/network/lsm/. On RedHad/CentOS-derived systems, this will be
+/etc/sysconfig/network-scripts/lsm/.
+
+=cut
+
 sub default_lsm_scripts_dir {
     my $self = shift;
     return '/etc/network/lsm/'                   if -d '/etc/network';
@@ -145,10 +227,27 @@ sub default_lsm_scripts_dir {
     return '/etc/lsm';
 }
 
-=head2 $bal->rules_directory([$rules_directory])
+=head1 OBJECT METHODS
 
-Directory in which *.conf and *.pl files containing additional routing and firewall
-rules can be found. Starts out as '/etc/network/balance'
+These are methods that can be called once the Net::ISP::Balance object
+is created.
+
+=head2 $file = $bal->conf_file([$new_file])
+
+Get/set the main configuration file path, balance.conf.
+
+=cut
+
+sub conf_file {
+    my $self = shift;
+    my $d   = $self->{bal_conf_file};
+    $self->{bal_conf_file} = shift if @_;
+    $d;
+}
+
+=head2 $dir = $bal->rules_directory([$new_rules_directory])
+
+Get/set the route and firewall rules directory.
 
 =cut
 
@@ -159,6 +258,12 @@ sub rules_directory {
     $d;
 }
 
+=head2 $file = $bal->lsm_conf_file([$new_conffile])
+
+Get/set the path to the lsm configuration file.
+
+=cut
+
 sub lsm_conf_file {
     my $self = shift;
     my $d   = $self->{lsm_conf_file};
@@ -166,20 +271,25 @@ sub lsm_conf_file {
     $d;
 }
 
+=head2 $dir = $bal->lsm_scripts_dir([$new_dir])
+
+Get/set the path to the lsm scripts directory.
+
+=cut
+
 sub lsm_scripts_dir {
     my $self = shift;
     my $d   = $self->{lsm_scripts_dir};
     $self->{lsm_scripts_dir} = shift if @_;
     $d;
 }
-sub bal_conf_file {
-    my $self = shift;
-    my $d   = $self->{bal_conf_file};
-    $self->{bal_conf_file} = shift if @_;
-    $d;
-}
 
-=head2 $bal->verbose([boolean]);
+=head2 $verbose = $bal->verbose([boolean]);
+
+sub bal_conf_file { my $self = shift; my $d = $self->{bal_conf_file};
+$self->{bal_conf_file} = shift if @_; $d; } Get/set verbosity of
+the module. If verbose is true, then firewall and routing rules
+will be echoed to STDERR before being executed on the system.
 
 =cut
 
@@ -190,9 +300,9 @@ sub verbose {
     $d;
 }
 
-=head2 $bal->iptables_verbose([boolean])
+=head2 $verbose = $bal->iptables_verbose([boolean])
 
-Makes iptables log verbosely to syslog
+Makes iptables log applied rules verbosely to syslog.
 
 =cut
 
@@ -203,7 +313,11 @@ sub iptables_verbose {
     $d;
 }
 
-=head2 $bal->echo_only([boolean]);
+=head2 $echo = $bal->echo_only([boolean]);
+
+Get/set the echo_only flag. If this is true (default false), then
+routing and firewall rules will be printed to STDOUT rathar than being
+executed.
 
 =cut
 
@@ -215,6 +329,8 @@ sub echo_only {
 }
 
 =head2 @names = $bal->service_names
+
+Return the list of service names defined in balance.conf.
 
 =cut
 
@@ -239,7 +355,7 @@ sub isp_services {
 =head2 @names = $bal->lan_services
 
 Return list of service names that correspond to lans.
-Currently this is only tested with a single lan!!
+
 
 =cut
 
@@ -251,7 +367,8 @@ sub lan_services {
 
 =head2 @up = $bal->up(@up_services)
 
-Get or set the list of ISP interfaces that should be used for balancing.
+Get or set the list of ISP interfaces that are currently active and
+should be used for balancing.
 
 =cut
 
@@ -268,11 +385,51 @@ sub up {
 
 =head2 $services = $bal->services
 
+Return a hash containing the configuration information for  each
+service. The keys are the service names. Here's an example:
+
+ {
+ 0  HASH(0x91201e8)
+   'CABLE' => HASH(0x9170500)
+      'dev' => 'eth0'
+      'fwmark' => 2
+      'gw' => '191.3.88.1'
+      'ip' => '191.3.88.152'
+      'net' => '191.3.88.128/27'
+      'ping' => 'www.google.ca'
+      'role' => 'isp'
+      'running' => 1
+      'table' => 2
+   'DSL' => HASH(0x9113e00)
+      'dev' => 'ppp0'
+      'fwmark' => 1
+      'gw' => '112.211.154.198'
+      'ip' => '11.120.199.108'
+      'net' => '112.211.154.198/32'
+      'ping' => 'www.google.ca'
+      'role' => 'isp'
+      'running' => 1
+      'table' => 1
+   'LAN' => HASH(0x913ce58)
+      'dev' => 'eth1'
+      'fwmark' => undef
+      'gw' => '192.168.10.1'
+      'ip' => '192.168.10.1'
+      'net' => '192.168.10.0/24'
+      'ping' => ''
+      'role' => 'lan'
+      'running' => 1
+ }
+
+
 =cut
 
 sub services { return shift->{services} }
 
 =head2 $service = $bal->service('CABLE')
+
+Return the subhash describing the single named service (see services()
+above).
 
 =cut
 
@@ -290,20 +447,20 @@ sub service {
 
 =head2 $role = $bal->role('CABLE')
 
-Possible roles are "isp" and "lan". "isp" indicates an outgoing
-interface connected to an internet service provider. "lan" indicates a
-local interface connected to your network. Currently we expect there
-to be only one lan but this may chance in the fugure.
-
 =head2 $running = $bal->running('CABLE')
 
 =head2 $mark_number = $bal->fwmark('CABLE')
 
 =head2 $routing_table_number = $bal->table('CABLE')
 
-This is currently always the same as the fwmark to simplify debugging.
-
 =head2 $ping_dest   = $bal->ping('CABLE')
+
+These methods pull out the named information from the configuration
+data. fwmark() returns a small integer that will be used for marking
+connections for routing through one of the ISP connections when an
+outgoing connection originates on the LAN and is routed through the
+router. table() returns a small integer corresponding to a routing
+table used to route connections originating on the router itself.
 
 =cut
 
@@ -325,6 +482,10 @@ sub _service_field {
 }
 
 =head2 $lsm_config_text = $bal->lsm_config_file(-warn_email=>'root@localhost')
+
+This method creates the text used to create the lsm.conf configuration
+file. Pass it a series of -name=>value pairs to incorporate into the
+file.
 
 Possible switches and their defaults are:
 
