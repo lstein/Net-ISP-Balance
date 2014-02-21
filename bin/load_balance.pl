@@ -62,5 +62,6 @@ sub start_lsm_if_needed {
     }
 
     # now start the process
-    system "lsm /etc/network/lsm.conf /var/run/lsm.pid";
+    $ENV{PATH} .= ":/usr/local/bin" unless $ENV{PATH} =~ m!/usr/local/bin!;
+    system "lsm $lsm_conf /var/run/lsm.pid";
 }

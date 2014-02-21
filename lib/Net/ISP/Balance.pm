@@ -83,6 +83,7 @@ sub new {
 	services  => {},
 	rules_directory => $class->default_rules_directory,
 	lsm_conf_file   => $class->default_lsm_conf_file,
+	lsm_scripts_dir => $class->default_lsm_scripts_dir,
 	bal_conf_file   => $conf,
 	dummy_data=>$dummy_test_data,
     },ref $class || $class;
@@ -121,6 +122,13 @@ sub default_lsm_conf_file {
     return '/etc/lsm.conf';
 }
 
+sub default_lsm_scripts_dir {
+    my $self = shift;
+    return '/etc/network/lsm/'                   if -d '/etc/network';
+    return '/etc/sysconfig/network-scripts/lsm/' if -d '/etc/sysconfig/network-scripts';
+    return '/etc/lsm';
+}
+
 =head2 $bal->rules_directory([$rules_directory])
 
 Directory in which *.conf and *.pl files containing additional routing and firewall
@@ -142,6 +150,12 @@ sub lsm_conf_file {
     $d;
 }
 
+sub lsm_scripts_dir {
+    my $self = shift;
+    my $d   = $self->{lsm_scripts_dir};
+    $self->{lsm_scripts_dir} = shift if @_;
+    $d;
+}
 sub bal_conf_file {
     my $self = shift;
     my $d   = $self->{bal_conf_file};
@@ -320,11 +334,12 @@ Possible switches and their defaults are:
 sub lsm_config_text {
     my $self = shift;
     my %args = @_;
+    my $scripts_dir = $self->lsm_scripts_dir;
     my %defaults = (
                       -checkip              => '127.0.0.1',
                       -debug                => 8,
-                      -eventscript          => '/etc/network/lsm/balancer_event_script',
-                      -notifyscript         => '/etc/network/lsm/default_script',
+                      -eventscript          => "$scripts_dir/balancer_event_script",
+                      -notifyscript         => "$scripts_dir/default_script",
                       -max_packet_loss      => 15,
                       -max_successive_pkts_lost =>  7,
                       -min_packet_loss          =>  5,
