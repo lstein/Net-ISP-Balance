@@ -51,7 +51,6 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
 
 =cut
 
-
 use Carp;
 
 =head1 METHODS
@@ -62,11 +61,14 @@ Here are major methods that are recommended for users of this module.
 
 Creates a new balancer object. 
 
-The first optional argument is the balancer configuration file, defaults
-to /etc/network/balance.conf.  
+The first optional argument is the balancer configuration file, which
+defaults to /etc/network/balance.conf on Ubuntu/Debian-derived
+systems, and /etc/sysconfig/network-scripts/balance.conf on
+RedHat/CentOS-derived systems. From hereon, we'll refer to the base of
+the various configuration files as $ETC_NETWORK.
 
 The second optional argument is the system network interfaces file,
-defaulting to /etc/network/interfaces.
+defaulting to $ETC_NETWORK/interfaces.
 
 =cut
 
@@ -94,12 +96,26 @@ sub new {
     return $self;
 }
 
+=head2 $file = Net::ISP::Balance->default_conf_file
+
+Returns the path to the default configuration file,
+$ETC_NETWORK/balance.conf.
+
+=cut
+
 sub default_conf_file {
     my $self = shift;
     return '/etc/network/balance.conf'                   if -d '/etc/network';
     return '/etc/sysconfig/network-scripts/balance.conf' if -d '/etc/sysconfig/network-scripts';
     return '/etc/balance.conf';
 }
+
+=head2 $file_or_dir = Net::ISP::Balance->default_interface_file
+
+Returns the path to the default configuration file,
+$ETC_NETWORK/balance.conf.
+
+=cut
 
 sub default_interface_file {
     my $self = shift;

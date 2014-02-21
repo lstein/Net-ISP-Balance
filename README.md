@@ -32,11 +32,12 @@ The scripts run on the Linux-based router/firewall machine. In order
 to install, you must have the ability to run a shell on the router,
 and compile and install software.
 
-LIMITATIONS: To date (18 February 2014) these scripts have only been
+LIMITATIONS: To date (21 February 2014) these scripts have only been
 tested on Ubuntu/Debian systems that configure their network
-interfaces via a /etc/network/interfaces file. I am currently
-generalizing the code to work with Red Hat-based systems that use
-/etc/sysconfig/network-scripts.
+interfaces via a /etc/network/interfaces file, and RedHat/CentOS
+systems that configure their interfaces via
+/etc/sysconfig/network-scripts. Please feel free to contribute support
+for other distributions.
 
 Installation
 ============
@@ -66,9 +67,15 @@ router/firewall machine.
   sudo ./Build install
 </pre>
 
-<li> Edit the configuration file located in /etc/network/balance.conf
-to meet your needs. The core of the file looks like this:
+<li> Copy the example configuration <i>file balance.conf.example</i>
+to balance.conf. If you are on a Ubuntu/Debian system, this file will
+be located at /etc/network/balance.conf. If you are on a RedHat/CentOS
+system, you'll find it in
+/etc/sysconfig/network-scripts/balance.conf.
 
+Then edit it to meet your needs. The core of the file looks like this:
+
+<i>/etc/network/balance.conf /etc/sysconfig/network-scripts/balance.conf</i>
 <pre>
  #service    device   role     ping-ip
  CABLE	    eth0     isp      173.194.43.95
@@ -112,7 +119,11 @@ system when you execute it, then run (as a regular user) the following
 command:
 
 <pre>
- /etc/network/load_balance.pl -d > commands.sh
+ /etc/network/load_balance.pl -d > commands.sh    # Ubuntu/Debian
+
+-or-
+
+ /etc/sysconfig/network-scripts/load_balance.pl -d > commands.sh  # RedHat/CentOS
 </pre>
 
 The "-d" argument puts the script into debug mode. All commands that
@@ -128,7 +139,8 @@ and firewalling:
 load_balance.pl:
 
 <pre>
- sudo /etc/network/load_balance.pl
+ sudo /etc/network/load_balance.pl                      # Ubuntu/Debian
+ su -c /etc/sysconfig/network-scripts/load_balance.pl   # RedHat/CentOS
 </pre>
 
 This will configure the system for load balancing, installing a
@@ -145,9 +157,13 @@ You may do this by adding an entry in rc.local:
  fi
 </pre>
 
+Modify as needed for RedHat/CentOS.
+
 However, my preference is to invoke the script when the LAN interface
-comes up. Edit /etc/network/interfaces, find the reference to the LAN
-interface, and edit it to add a "post-up" option as shown here:
+comes up. On Ubuntu/Debian systems, edit
+<i>/etc/network/interfaces</i> (Ubuntu/Debian), find the reference to
+the LAN interface, and edit it to add a "post-up" option as shown
+here:
 
 <pre>
  auto eth2
@@ -155,6 +171,21 @@ interface, and edit it to add a "post-up" option as shown here:
  ... blah blah ...
  post-up /etc/network/load_balance.pl
 </pre>
+
+On RedHat/CentOS systems, create an executable script named
+/sbin/ifup-local, and populate it with the following code:
+
+<pre>
+#!/bin/sh
+
+LANDEV=eth2;
+
+if [ "$1" eq "$LANDEV" ] ; then
+   /etc/sysconfig/network-scripts/load_balance.pl
+fi
+</pre>
+
+Be sure to change "eth2" to the correct device for the LAN interface.
 
 Further Configuration
 =====================
@@ -164,12 +195,21 @@ allows incoming ssh services to the router from the Internet and
 rejects all other incoming services. You may modify this if you wish
 by adding additional firewall rules and routes.
 
-The routes and rules are located in these subdirectories:
+The routes and rules are located in these subdirectories on
+Ubuntu/Debian systems:
 
 <pre>
  /etc/network/balance/firewall       # firewall rules
  /etc/network/balance/routes         # routes
 </pre>
+
+and here on RedHat/CentOS systems:
+
+<pre>
+ /etc/sysconfig/network-scripts/balance/firewall       # firewall rules
+ /etc/sysconfig/network-scripts/balance/routes         # routes
+</pre>
+
 
 Any files you put into these directories will be read in alphabetic
 order and added to the routes and/or firewall rules emitted by the
@@ -178,7 +218,6 @@ load balancing script.
 A typical routing rules file will look like the example shown
 below.
 
-<i>/etc/network/balance/routes/01.local_routes.conf</i>
 <pre>
  ip route add 192.168.100.1  dev eth0 src 198.162.1.14
  ip route add 192.168.1.0/24 dev eth2 src 10.0.0.4
@@ -190,7 +229,6 @@ scripting constructs are not allowed here.
 
 A typical firewall rules file will look like the example shown here:
 
-<i>/etc/network/balance/firewall/01.iptables_extras</i>
 <pre>
  # accept incoming telnet connections to the router
  iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT
@@ -205,7 +243,7 @@ network addresses and can make use of a variety of shortcuts. To do
 this, simply end the file's name with .pl and make it executable.
 
 Here's an example of a file named
-<tt>/etc/network/balance/01.forwardings.pl</tt> that defines a series of port
+<tt>balance/firewall/01.forwardings.pl</tt> that defines a series of port
 forwarding rules for incoming connections:
 
 <pre>
@@ -228,7 +266,8 @@ You can invoke load_balance.pl from the command line to manually bring
 up and down ISP services. The format is simple:
 
 <pre>
- /etc/network/load_balance.pl ISP1 ISP2 ISP3 ...
+/etc/network/load_balance.pl ISP1 ISP2 ISP3 ...                     # Ubuntu/Debian
+/etc/sysconfig/network-scripts/load_balance.pl ISP1 ISP2 ISP3 ...   # RedHat/CentOS
 </pre>
 
 ISP1, etc are service names defined in the configuration file. All
