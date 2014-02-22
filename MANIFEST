@@ -4,7 +4,7 @@ etc/balance/firewall/01.forwardings.pl
 etc/balance/firewall/01.iptable_extras
 etc/balance/firewall/02.accept.pl
 etc/balance/routes/01.local_routes.conf
-etc/balance.conf.example
+etc/balance.conf
 lib/Net/ISP/Balance.pm
 LICENSE
 lsm/cksum.c

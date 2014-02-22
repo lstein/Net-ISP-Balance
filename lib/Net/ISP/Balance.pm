@@ -97,6 +97,13 @@ sub new {
     return $self;
 }
 
+sub install_etc {
+    my $self = shift;
+    return '/etc/network'                    if -d '/etc/network';
+    return '/etc/sysconfig/network-scripts'  if -d '/etc/sysconfig/network-scripts';
+    return '/etc';
+}
+
 =head2 $file = Net::ISP::Balance->default_conf_file
 
 Returns the path to the default configuration file,
@@ -106,9 +113,7 @@ $ETC_NETWORK/balance.conf.
 
 sub default_conf_file {
     my $self = shift;
-    return '/etc/network/balance.conf'                   if -d '/etc/network';
-    return '/etc/sysconfig/network-scripts/balance.conf' if -d '/etc/sysconfig/network-scripts';
-    return '/etc/balance.conf';
+    return $self->install_etc.'/balance.conf';
 }
 
 =head2 $file_or_dir = Net::ISP::Balance->default_interface_file

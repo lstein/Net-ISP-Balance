@@ -4,9 +4,15 @@ use strict;
 use warnings;
 use Module::Build;
 
+use lib './lib';
+use Net::ISP::Balance;
+
 my $class = Module::Build->subclass(code=><<'EOF');
+
 use File::Find 'find';
 use File::Basename 'basename';
+use lib './lib';
+use Net::ISP::Balance;
 
 sub ACTION_clean {
     my $self = shift;
@@ -39,6 +45,13 @@ sub process_etc_files {
 	  wanted => sub { return unless -f $File::Find::name;
 			  my $bn = basename($_);
 			  return if $bn =~ /~$/ || $bn =~ /^#/;
+			  (my $strip = $File::Find::name) =~ s!^\./etc/!!;
+			  my $install_etc = Net::ISP::Balance->install_etc;
+			  if (-e "$install_etc/$strip") {
+			      print STDERR "skip $install_etc/$strip: already installed\n";
+			      unlink "./blib/$File::Find::name";
+			      return;
+			  }
 			  $self->copy_if_modified(from => $File::Find::name,
 						  to_dir => './blib');
 	  }},
@@ -61,10 +74,7 @@ my $build = $class->new(
     },
     );
 
-my $install_etc =  -d '/etc/network'                   ? '/etc/network'
-                 : -d '/etc/sysconfig/network-scripts' ? '/etc/sysconfig/network-scripts'
-                 : '/etc/';
-
+my $install_etc = Net::ISP::Balance->install_etc;
 $build->add_build_element('etc');
 $build->add_build_element('lsm');
 $build->install_path('etc'       => $install_etc);
