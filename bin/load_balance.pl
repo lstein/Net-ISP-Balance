@@ -4,8 +4,10 @@ use strict;
 use Net::ISP::Balance;
 use Getopt::Long;
 
-my $DEBUG;
-my $result = GetOptions('debug' => \$DEBUG);
+my ($DEBUG,$VERBOSE);
+my $result = GetOptions('debug' => \$DEBUG,
+			'verbose'=>\$VERBOSE,
+    );
 $result or die <<END;
 Usage: $0 [-d] ISP1 ISP2 ISP3...
 
@@ -24,6 +26,9 @@ Options:
                  routing commands will be executed, but instead
                  will be printed to standard output for inspection.
 
+ --verbose, -v   Verbose output. Echo all route and iptables commands
+                 to STDERR before executing them.
+
 END
 
 # command line arguments correspond to the ISP services (defined in the config file)
@@ -37,6 +42,7 @@ my %up_services = map {uc($_) => 1} @up;
 
 $bal->up(@up);
 $bal->echo_only($DEBUG);
+$bal->verbose($VERBOSE);
 
 # start lsm process if it is not running
 start_lsm_if_needed($bal) unless @ARGV || $DEBUG;
@@ -53,13 +59,10 @@ sub start_lsm_if_needed {
     my $lsm_conf = $bal->lsm_conf_file;
     my $bal_conf = $bal->bal_conf_file;
 
-    # need to create config file
-    if (! -e $lsm_conf || 
-	(-M $bal_conf < -M $lsm_conf)) {
-	open my $fh,'>',$lsm_conf or die "$lsm_conf: $!";
-	print $fh $bal->lsm_config_text();
-	close $fh or die "$lsm_conf: $!";
-    }
+    # Create config file
+    open my $fh,'>',$lsm_conf or die "$lsm_conf: $!";
+    print $fh $bal->lsm_config_text();
+    close $fh or die "$lsm_conf: $!";
 
     # now start the process
     $ENV{PATH} .= ":/usr/local/bin" unless $ENV{PATH} =~ m!/usr/local/bin!;

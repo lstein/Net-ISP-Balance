@@ -232,13 +232,13 @@ sub default_lsm_scripts_dir {
 These are methods that can be called once the Net::ISP::Balance object
 is created.
 
-=head2 $file = $bal->conf_file([$new_file])
+=head2 $file = $bal->bal_conf_file([$new_file])
 
 Get/set the main configuration file path, balance.conf.
 
 =cut
 
-sub conf_file {
+sub bal_conf_file {
     my $self = shift;
     my $d   = $self->{bal_conf_file};
     $self->{bal_conf_file} = shift if @_;
@@ -1210,8 +1210,8 @@ sub sanity_fw_rules {
 	my $lan1 = $lans[$i];
 	my $lan2 = $lans[$i+1];
 	next unless $lan2;
-	$self->iptables('-A FORWARD -i',$self->dev($lan1),'-o',$self->dev($lan1),'-s',$self->net($lan1),'-j ACCEPT');
-	$self->iptables('-A FORWARD -o',$self->dev($lan1),'-i',$self->dev($lan1),'-s',$self->net($lan2),'-j ACCEPT');
+	$self->iptables('-A FORWARD -i',$self->dev($lan1),'-o',$self->dev($lan2),'-s',$self->net($lan1),'-j ACCEPT');
+	$self->iptables('-A FORWARD -o',$self->dev($lan1),'-i',$self->dev($lan2),'-s',$self->net($lan2),'-j ACCEPT');
     }
 
     # anything else is bizarre and should be dropped
