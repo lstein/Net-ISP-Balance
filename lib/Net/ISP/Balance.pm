@@ -1204,6 +1204,16 @@ sub sanity_fw_rules {
 	}
     }
 
+    # allow forwarding between lans
+    my @lans = $self->lan_services;
+    for (my $i=0;$i<@lans;$i++) {
+	my $lan1 = $lans[$i];
+	my $lan2 = $lans[$i+1];
+	next unless $lan2;
+	$self->iptables('-A FORWARD -i',$self->dev($lan1),'-o',$self->dev($lan1),'-s',$self->net($lan1),'-j ACCEPT');
+	$self->iptables('-A FORWARD -o',$self->dev($lan1),'-i',$self->dev($lan1),'-s',$self->net($lan2),'-j ACCEPT');
+    }
+
     # anything else is bizarre and should be dropped
     $self->iptables('-A OUTPUT  -j DROPSPOOF');
 }
