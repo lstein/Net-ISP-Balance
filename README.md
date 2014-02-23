@@ -67,11 +67,10 @@ router/firewall machine.
   sudo ./Build install
 </pre>
 
-<li> Copy the example configuration <i>file balance.conf.example</i>
-to balance.conf. If you are on a Ubuntu/Debian system, this file will
-be located at /etc/network/balance.conf. If you are on a RedHat/CentOS
-system, you'll find it in
-/etc/sysconfig/network-scripts/balance.conf.
+<li> Edit the example configuration file <i>balance.conf</i> to
+balance.conf. If you are on a Ubuntu/Debian system, this file will be
+located at /etc/network/balance.conf. If you are on a RedHat/CentOS
+system, you'll find it in /etc/sysconfig/network-scripts/balance.conf.
 
 Then edit it to meet your needs. The core of the file looks like this:
 
