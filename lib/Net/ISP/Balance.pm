@@ -1259,16 +1259,14 @@ sub forward {
     my @dev = map {$self->dev($_)} $self->isp_services;
 
     for my $protocol (@protocols) {
-	for my $d (@dev) {
-	    $self->iptables(["-A INPUT   -p $protocol --dport $port -j ACCEPT",
-			     "-A FORWARD -p $protocol --dport $port -j ACCEPT",
-			     "-t nat -A PREROUTING -i $d -p $protocol --dport $port -j DNAT --to-destination $host"]);
+	$self->iptables("-t nat -A PREROUTING -p $protocol --dport $port -j DNAT --to-destination $host");
+	for my $lan ($self->lan_services) {
+	    my $landev = $self->dev($lan);
+	    my $lannet = $self->net($lan);
+	    my $lanip  = $self->ip($lan);
+	    $self->iptables("-A FORWARD -p $protocol -o $landev --syn -d $dhost --dport $dport -j ACCEPT");
+	    $self->iptables("-t nat -A POSTROUTING -p $protocol -d $dhost -o $landev --dport $dport -j SNAT --to $lanip");
 	}
-	$self->iptables('-t nat -A POSTROUTING -p',$protocol,
-			'-d',$dhost,'--dport',$dport,
-			'-s',$self->net($_),
-			'-j','SNAT',
-			'--to',$self->ip($_)) foreach $self->lan_services;
     }
 }
 
