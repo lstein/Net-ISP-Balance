@@ -138,17 +138,17 @@ $output = capture(
 	$bal->forward(80 => '192.168.10.35');
 	$bal->forward(81 => '192.168.10.35:8080','tcp','udp');
     });
-ok($output=~/iptables -t nat -A PREROUTING -i ppp0 -p tcp --dport 80 -j DNAT --to-destination 192.168.10.35/,
+ok($output=~/iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 192.168.10.35/,
    'DNAT rule works');
-ok($output=~m!iptables -t nat -A POSTROUTING -p tcp -d 192.168.10.35 --dport 80 -s 192.168.12.0/24 -j SNAT --to 192.168.12.1!,
+ok($output=~m!iptables -t nat -A POSTROUTING -p tcp -d 192.168.10.35 -o eth3 --dport 80 -j SNAT --to 192.168.12.1!,
    'SNAT rule works');
-ok($output=~/iptables -t nat -A PREROUTING -i ppp0 -p tcp --dport 81 -j DNAT --to-destination 192.168.10.35:8080/,
+ok($output=~/iptables -t nat -A PREROUTING -p tcp --dport 81 -j DNAT --to-destination 192.168.10.35:8080/,
    'host:port syntax works');
 
 $output = capture(sub { $bal->local_fw_rules() });
-ok($output =~ /iptables -A INPUT   -p tcp --dport 23 -j ACCEPT/,
-   'local forward rules working INPUT');
-ok($output =~ m!iptables -t nat -A POSTROUTING -p tcp -d 192.168.10.35 --dport 22 -s 192.168.12.0/24 -j SNAT --to 192.168.12.1!,
+ok($output =~ /iptables -t nat -A PREROUTING -p tcp --dport 23 -j DNAT --to-destination 192.168.10.35:22/,
+   'local forward rules working PREROUTING');
+ok($output =~ m!iptables -t nat -A POSTROUTING -p tcp -d 192.168.10.35 -o eth3 --dport 22 -j SNAT --to 192.168.12.1!,
    'local forward rules working SNAT');
 ok($output =~ m!iptables -A INPUT -p tcp -s 192.168.12.0/24 --syn --dport ssh -j ACCEPT!,
    'local accept rules working');
