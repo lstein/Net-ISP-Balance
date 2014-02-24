@@ -28,37 +28,352 @@
     <div id="content-wrapper">
       <div class="inner clearfix">
         <section id="main-content">
-          <h3>
-<a name="welcome-to-github-pages" class="anchor" href="#welcome-to-github-pages"><span class="octicon octicon-link"></span></a>Welcome to GitHub Pages.</h3>
+          <p>This is a set of scripts that enable you to load-balance a home or
+small business Internet connection across two or more ISPs. You gain
+additional bandwidth and reliability; if one ISP fails, the other(s)
+will take over automatically.</p>
 
-<p>This automatic page generator is the easiest way to create beautiful pages for all of your projects. Author your page content here using GitHub Flavored Markdown, select a template crafted by a designer, and publish. After your page is generated, you can check out the new branch:</p>
+<p>These scripts are designed to run on top of a Linux system, and have
+not been tested on Windows or Mac OSX. A typically network topology
+looks like this:</p>
 
-<pre><code>$ cd your_repo_root/repo_name
-$ git fetch origin
-$ git checkout gh-pages
-</code></pre>
+<pre>
 
-<p>If you're using the GitHub for Mac, simply sync your repository and you'll see the new branch.</p>
 
-<h3>
-<a name="designer-templates" class="anchor" href="#designer-templates"><span class="octicon octicon-link"></span></a>Designer Templates</h3>
+                                   Cable modem ------&gt; ISP1
+                                       ^
+  home machine 1 ------&gt;|              |
+                        |              |
+  home machine 2 ------&gt;|-------&gt;router/firewall
+                        |              |
+  home machine 3 ------&gt;|              |
+                                       v
+                                   DSL modem   ------&gt; ISP2
 
-<p>We've crafted some handsome templates for you to use. Go ahead and continue to layouts to browse through them. You can easily go back to edit your page before publishing. After publishing your page, you can revisit the page generator and switch to another theme. Your Page content will be preserved if it remained markdown format.</p>
 
-<h3>
-<a name="rather-drive-stick" class="anchor" href="#rather-drive-stick"><span class="octicon octicon-link"></span></a>Rather Drive Stick?</h3>
+   Local Area Network(LAN)             |     Wide Area Network (WAN)
+      
+</pre>
 
-<p>If you prefer to not use the automatic generator, push a branch named <code>gh-pages</code> to your repository to create a page manually. In addition to supporting regular HTML content, GitHub Pages support Jekyll, a simple, blog aware static site generator written by our own Tom Preston-Werner. Jekyll makes it easy to create site-wide headers and footers without having to copy them across every page. It also offers intelligent blog support and other advanced templating features.</p>
+<p>The scripts run on the Linux-based router/firewall machine. In order
+to install, you must have the ability to run a shell on the router,
+and compile and install software.</p>
 
-<h3>
-<a name="authors-and-contributors" class="anchor" href="#authors-and-contributors"><span class="octicon octicon-link"></span></a>Authors and Contributors</h3>
+<p>LIMITATIONS: To date (21 February 2014) these scripts have only been
+tested on Ubuntu/Debian systems that configure their network
+interfaces via a /etc/network/interfaces file, and RedHat/CentOS
+systems that configure their interfaces via
+/etc/sysconfig/network-scripts. Please feel free to contribute support
+for other distributions.</p>
 
-<p>You can <a href="https://github.com/blog/821" class="user-mention">@mention</a> a GitHub username to generate a link to their profile. The resulting <code>&lt;a&gt;</code> element will link to the contributor's GitHub Profile. For example: In 2007, Chris Wanstrath (<a href="https://github.com/defunkt" class="user-mention">@defunkt</a>), PJ Hyett (<a href="https://github.com/pjhyett" class="user-mention">@pjhyett</a>), and Tom Preston-Werner (<a href="https://github.com/mojombo" class="user-mention">@mojombo</a>) founded GitHub.</p>
+<h1>
+<a name="installation" class="anchor" href="#installation"><span class="octicon octicon-link"></span></a>Installation</h1>
 
-<h3>
-<a name="support-or-contact" class="anchor" href="#support-or-contact"><span class="octicon octicon-link"></span></a>Support or Contact</h3>
+<p></p><ol>
+<li> Download the zip file of the source code from
+<a href="https://github.com/lstein/Net-ISP-Balance">https://github.com/lstein/Net-ISP-Balance</a>, or use git to clone the
+repository. 
 
-<p>Having trouble with Pages? Check out the documentation at <a href="http://help.github.com/pages">http://help.github.com/pages</a> or contact <a href="mailto:support@github.com">support@github.com</a> and we’ll help you sort it out.</p>
+<p></p>
+</li>
+<li> Place the unpacked subdirectory in a home directory on the
+router/firewall machine.
+
+<p></p>
+</li>
+<li> Check/install the following prerequisites on the router:
+
+<ul>
+<li> C compiler and "make" tool. ("apt-get install build-essential" on
+ Debian/Ubuntu systems will do this for you.)
+
+ </li>
+<li> Perl version 5.8 or higher.
+</li>
+</ul>
+<p></p>
+</li>
+<li> Enter the unpacked directory and run:
+
+<pre>
+  perl ./Build.PL
+  ./Build installdeps
+  ./Build test
+  sudo ./Build install
+</pre>
+
+<p></p>
+</li>
+<li> Edit the example configuration file <i>balance.conf</i> to
+balance.conf. If you are on a Ubuntu/Debian system, this file will be
+located at /etc/network/balance.conf. If you are on a RedHat/CentOS
+system, you'll find it in /etc/sysconfig/network-scripts/balance.conf.
+
+<p>Then edit it to meet your needs. The core of the file looks like this:</p>
+
+<p><i>/etc/network/balance.conf /etc/sysconfig/network-scripts/balance.conf</i></p>
+
+<pre>
+ #service    device   role     ping-ip
+ CABLE      eth0     isp      173.194.43.95
+ DSL        eth1     isp      173.194.43.95
+ LAN        eth2     lan      
+</pre>
+
+<p>Each line of the table defines a "service" that corresponds to an ISP
+or a connected LAN. </p>
+
+<p>The first column is a service name that is used to
+bring up or down the needed routes and firewall rules.</p>
+
+<p>The second column is the name of the network interface device that
+connects to that service.</p>
+
+<p>The third column is either "isp" or "lan". There may be any number of
+these. The script will firewall traffic passing through any of the
+ISPs, and will load balance traffic among them. Traffic can flow
+freely among any of the interfaces marked as belonging to a LAN.</p>
+
+<p>The fourth and last column is the IP address of a host that can be
+periodically pinged to test the integrity of each ISP connection. If
+too many pings failed, the service will be brought down and all
+traffic routed through the remaining ISP(s). The service will continue
+to be monitored and will be brought up when it is once again
+working. Choose a host that is not likely to go offline for reasons
+unrelated to your network connectivity, such as google.com, or the
+ISP's web site.</p>
+
+<p></p>
+</li>
+<li> (optional) Make edits to the firewall and route rules.
+
+<p>This mechanism allows you to add additional entries to the routing
+tables and/or firewall. See Further Configuration for more details.</p>
+
+<p></p>
+</li>
+<li> (optional) Run load_balance.pl in debug mode to see the commands it
+will execute.
+
+<p>If you wish to check how the balancing script will configure your
+system when you execute it, then run (as a regular user) the following
+command:</p>
+
+<pre>
+ /etc/network/load_balance.pl -d &gt; commands.sh    # Ubuntu/Debian
+
+-or-
+
+ /etc/sysconfig/network-scripts/load_balance.pl -d &gt; commands.sh  # RedHat/CentOS
+</pre>
+
+<p>The "-d" argument puts the script into debug mode. All commands that
+it would run on your behalf are placed into 'commands.sh' for your
+inspection. You may also execute commands.sh to start balanced routing
+and firewalling:</p>
+
+<pre>
+ /bin/sh commands.sh
+</pre>
+
+<p></p>
+</li>
+<li> Start the script running. Become the superuser and run
+load_balance.pl:
+
+<pre>
+ sudo /etc/network/load_balance.pl                      # Ubuntu/Debian
+ su -c /etc/sysconfig/network-scripts/load_balance.pl   # RedHat/CentOS
+</pre>
+
+<p>This will configure the system for load balancing, installing a
+restrictive set of firewall rules, and launch the lsm daemon to
+monitor each of the ISPs for activity.</p>
+
+<p></p>
+</li>
+<li> Arrange for load_balance.pl to be run on system startup time.
+
+<p>You may do this by adding an entry in rc.local:</p>
+
+<p>
+ if [ -x /etc/network/load_balance.pl ]; then
+     /etc/network/load_balance.pl
+ fi
+</p>
+
+<p>Modify as needed for RedHat/CentOS.</p>
+
+<p>However, my preference is to invoke the script when the LAN interface
+comes up. On Ubuntu/Debian systems, edit
+<i>/etc/network/interfaces</i> (Ubuntu/Debian), find the reference to
+the LAN interface, and edit it to add a "post-up" option as shown
+here:</p>
+
+<pre>
+ auto eth2
+ iface eth2 inet static
+ ... blah blah ...
+ post-up /etc/network/load_balance.pl
+</pre>
+
+<p>On RedHat/CentOS systems, create an executable script named
+/sbin/ifup-local, and populate it with the following code:</p>
+
+<pre>
+#!/bin/sh
+
+LANDEV=eth2;
+
+if [ "$1" eq "$LANDEV" ] ; then
+   /etc/sysconfig/network-scripts/load_balance.pl
+fi
+</pre>
+
+<p>Be sure to change "eth2" to the correct device for the LAN interface.</p>
+
+<h1>
+<a name="further-configuration" class="anchor" href="#further-configuration"><span class="octicon octicon-link"></span></a>Further Configuration</h1>
+
+<p>The default is to establish a reasonably restrictive firewall which
+allows incoming ssh services to the router from the Internet and
+rejects all other incoming services. You may modify this if you wish
+by adding additional firewall rules and routes.</p>
+
+<p>The routes and rules are located in these subdirectories on
+Ubuntu/Debian systems:</p>
+
+<pre>
+ /etc/network/balance/firewall       # firewall rules
+ /etc/network/balance/routes         # routes
+</pre>
+
+<p>and here on RedHat/CentOS systems:</p>
+
+<pre>
+ /etc/sysconfig/network-scripts/balance/firewall       # firewall rules
+ /etc/sysconfig/network-scripts/balance/routes         # routes
+</pre>
+
+<p>Any files you put into these directories will be read in alphabetic
+order and added to the routes and/or firewall rules emitted by the
+load balancing script.</p>
+
+<p>A typical routing rules file will look like the example shown
+below.</p>
+
+<pre>
+ ip route add 192.168.100.1  dev eth0 src 198.162.1.14
+ ip route add 192.168.1.0/24 dev eth2 src 10.0.0.4
+</pre>
+
+<p>Each line will be sent to the shell, and it is intended (but not
+required) that these be calls to the "ip" command. General shell
+scripting constructs are not allowed here.</p>
+
+<p>A typical firewall rules file will look like the example shown here:</p>
+
+<pre>
+ # accept incoming telnet connections to the router
+ iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT
+
+ # masquerade connections to the DSL modem's control interface
+ iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE
+</pre>
+
+<p>You may also insert routing and firewall rules via fragments of Perl
+code, which is convenient because you don't have to hard-code any
+network addresses and can make use of a variety of shortcuts. To do
+this, simply end the file's name with .pl and make it executable.</p>
+
+<p>Here's an example of a file named
+<tt>balance/firewall/01.forwardings.pl</tt> that defines a series of
+port forwarding rules for incoming connections:</p>
+
+<pre>
+ $B-&gt;forward(80 =&gt; '192.168.10.35'); # forward port 80 to internal web server
+ $B-&gt;forward(443=&gt; '192.168.10.35'); # forward port 443 to 
+ $B-&gt;forward(23 =&gt; '192.168.10.35:22'); # forward port 23 to ssh on  web sever
+</pre>
+
+<p>The main thing to know is that on entry to the script the global
+variable $B will contain an initialized instance of a
+Net::ISP::Balance object. You may then make method calls on this
+object to emit firewall and routing rules. Please read the manual page
+for Net::ISP::Balance for further information ("man
+Net::ISP::Balance").</p>
+
+<h1>
+<a name="calling-the-script-by-hand" class="anchor" href="#calling-the-script-by-hand"><span class="octicon octicon-link"></span></a>Calling the Script by Hand</h1>
+
+<p>You can invoke load_balance.pl from the command line to manually bring
+up and down ISP services. The format is simple:</p>
+
+<pre>
+/etc/network/load_balance.pl ISP1 ISP2 ISP3 ...                     # Ubuntu/Debian
+/etc/sysconfig/network-scripts/load_balance.pl ISP1 ISP2 ISP3 ...   # RedHat/CentOS
+</pre>
+
+<p>ISP1, etc are service names defined in the configuration file. All
+ISPs indicated on the command line will be maked as "up", others will
+not be used for load balancing. If no services are indicated on the
+command line, then ALL the ISP services will be marked up initially
+and lsm will be launched to monitor their connectivity periodically.</p>
+
+<p>Adding a -d option will print the routing and firewall commands to
+standard output for inspection.</p>
+
+<h1>
+<a name="how-it-works" class="anchor" href="#how-it-works"><span class="octicon octicon-link"></span></a>How it Works</h1>
+
+<p>The script uses two tricks to balance. The first is to set up a
+multipath default routing destination as described at
+<a href="http://lartc.org/howto/lartc.rpdb.multiple-links.html">http://lartc.org/howto/lartc.rpdb.multiple-links.html</a></p>
+
+<pre>
+ ip route add default \
+    nexthop via 206.250.80.122  dev ppp0 weight 1 \
+    nexthop via 198.5.13.201    dev eth0 weight 1
+</pre>
+
+<p>This balances network sessions originating from the router, but does
+not work for forwarded (NAT-ed) sessions from the LAN. To accomplish
+the latter, the script uses a combination of ip routing tables for
+outgoing connections, the firewall mark (fwmark) mechanism to select
+tables, and the iptables "mangle" chain to randomly select which
+ISP to use for outgoing connections:</p>
+
+<pre>
+ iptables -t mangle -A PREROUTING -i eth2 -m conntrack --ctstate NEW \
+          -m statistic --mode random --probability 1 -j MARK-ISP1
+ iptables -t mangle -A PREROUTING -i eth2 -m conntrack --ctstate NEW \
+          -m statistic --mode random --probability 0.5 -j MARK-ISP2
+</pre>
+
+<p>This strategy is described at
+<a href="https://home.regit.org/netfilter-en/links-load-balancing/">https://home.regit.org/netfilter-en/links-load-balancing/</a>.</p>
+
+<h1>
+<a name="license" class="anchor" href="#license"><span class="octicon octicon-link"></span></a>License</h1>
+
+<p>Perl Artistic License version 2.0
+(<a href="http://www.perlfoundation.org/artistic_license_2_0">http://www.perlfoundation.org/artistic_license_2_0</a>).</p>
+
+<h1>
+<a name="credits" class="anchor" href="#credits"><span class="octicon octicon-link"></span></a>Credits</h1>
+
+<p>This package contains a slightly-modified version of Mika Ilmaranta's
+&lt;ilmis at nullnet.fi&gt; Link Status Monitor (lsm) package. The original
+source code can be fond at <a href="http://lsm.foobar.fi/">http://lsm.foobar.fi/</a>.</p>
+
+<h1>
+<a name="author" class="anchor" href="#author"><span class="octicon octicon-link"></span></a>Author</h1>
+
+<p>Lincoln D. Stein (<a href="mailto:lincoln.stein@gmail.com">lincoln.stein@gmail.com</a>).</p>
+
+<p>Senior Principal Investigator, Ontario Institute for Cancer Research</p>
+</li>
+</ol>
         </section>
 
         <aside id="sidebar">
