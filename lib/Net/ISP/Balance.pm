@@ -5,7 +5,7 @@ use Net::Netmask;
 use IO::String;
 use Carp 'croak','carp';
 
-our $VERSION    = 1.00;
+our $VERSION    = '1.00';
 
 =head1 NAME
 

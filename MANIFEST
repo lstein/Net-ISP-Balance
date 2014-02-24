@@ -50,3 +50,5 @@ t/etc/balance/routes/01.local_routes.conf
 t/etc/balance/routes/02.local_routes.conf
 t/etc/balance/routes/03.local_rules.pl
 t/etc/interfaces
+META.yml
+META.json
