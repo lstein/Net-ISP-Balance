@@ -1,2 +1,0 @@
-# enter iptable commands here; for example this will allow incoming telnet from all interfaces
-# iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT
