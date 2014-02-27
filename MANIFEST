@@ -1,5 +1,6 @@
 bin/load_balance.pl
 Build.PL
+Changes
 etc/balance.conf
 etc/balance/firewall/01.forwardings.pl
 etc/balance/firewall/01.iptable_extras
@@ -41,6 +42,8 @@ lsm/signal_handler.h
 lsm/timecalc.c
 lsm/timecalc.h
 MANIFEST			This list of files
+META.json
+META.yml
 README.md
 t/01.config.t
 t/etc/balance.conf
@@ -50,5 +53,3 @@ t/etc/balance/routes/01.local_routes.conf
 t/etc/balance/routes/02.local_routes.conf
 t/etc/balance/routes/03.local_rules.pl
 t/etc/interfaces
-META.yml
-META.json

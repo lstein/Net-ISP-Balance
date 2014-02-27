@@ -1,0 +1,4 @@
+1.01	Update lsm config file when network configuration changes.
+	Use log-level 4 for all iptables logging events.        
+
+1.00	Initial release
