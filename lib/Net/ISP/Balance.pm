@@ -1052,7 +1052,7 @@ iptables -A DROPGEN -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix 
 iptables -A DROPGEN -j DROP
 
 iptables -N DROPINVAL
-iptables -A DROPINVAL -j LOG -m limit --limit 1/minute --log-level 5 --log-prefix "INVALID: "
+iptables -A DROPINVAL -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "INVALID: "
 iptables -A DROPINVAL -j DROP
 
 iptables -N DROPPERM
@@ -1060,11 +1060,11 @@ iptables -A DROPPERM -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix
 iptables -A DROPPERM -j DROP
 
 iptables -N DROPSPOOF
-iptables -A DROPSPOOF -j LOG -m limit --limit 1/minute --log-level 3 --log-prefix "DROP-SPOOF: "
+iptables -A DROPSPOOF -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "DROP-SPOOF: "
 iptables -A DROPSPOOF -j DROP
 
 iptables -N DROPFLOOD
-iptables -A DROPFLOOD -m limit --limit 1/minute  -j LOG --log-level 3 --log-prefix "DROP-FLOOD: "
+iptables -A DROPFLOOD -m limit --limit 1/minute  -j LOG --log-level 4 --log-prefix "DROP-FLOOD: "
 iptables -A DROPFLOOD -j DROP
 
 iptables -N DEBUG
