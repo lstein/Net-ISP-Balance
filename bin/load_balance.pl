@@ -53,11 +53,22 @@ exit 0;
 sub start_lsm_if_needed {
     my $bal = shift;
 
-    my $lsm_running = -e '/var/run/lsm.pid' && kill(0=>`cat /var/run/lsm.pid`);
-    return if $lsm_running;
-
     my $lsm_conf = $bal->lsm_conf_file;
     my $bal_conf = $bal->bal_conf_file;
+
+    my $lsm_running = -e '/var/run/lsm.pid' && kill(0=>`cat /var/run/lsm.pid`);
+    if ($lsm_running) {  # check whether the configuration file needs changing
+
+	open my $fh,'<',$lsm_conf or return;
+	my $old_text = '';
+	$old_text .= $_ while <$fh>;
+	close $fh;
+
+	my $new_text = $bal->lsm_config_text();
+	return if $new_text eq $old_text;
+
+	kill TERM=>`cat /var/run/lsm.pid`;  # kill lsm and restart
+    }
 
     # Create config file
     open my $fh,'>',$lsm_conf or die "$lsm_conf: $!";
