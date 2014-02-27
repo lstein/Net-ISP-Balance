@@ -1,12 +1,13 @@
 bin/load_balance.pl
 Build.PL
+etc/balance.conf
 etc/balance/firewall/01.forwardings.pl
 etc/balance/firewall/01.iptable_extras
 etc/balance/firewall/02.accept.pl
 etc/balance/routes/01.local_routes.conf
-etc/balance.conf
 lib/Net/ISP/Balance.pm
 LICENSE
+lsm/balancer_event_script
 lsm/cksum.c
 lsm/cksum.h
 lsm/config.c
@@ -42,10 +43,12 @@ lsm/timecalc.h
 MANIFEST			This list of files
 README.md
 t/01.config.t
+t/etc/balance.conf
 t/etc/balance/firewall/01.forwardings.pl
 t/etc/balance/firewall/02.accept.pl
 t/etc/balance/routes/01.local_routes.conf
 t/etc/balance/routes/02.local_routes.conf
 t/etc/balance/routes/03.local_rules.pl
-t/etc/balance.conf
 t/etc/interfaces
+META.yml
+META.json

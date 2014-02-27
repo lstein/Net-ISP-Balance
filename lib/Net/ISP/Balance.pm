@@ -5,7 +5,7 @@ use Net::Netmask;
 use IO::String;
 use Carp 'croak','carp';
 
-our $VERSION    = 0.10;
+our $VERSION    = '1.00';
 
 =head1 NAME
 
@@ -53,7 +53,7 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
 
 use Carp;
 
-=head1 CLASS METHODS
+=head1 FREQUENTLY-USED METHODS
 
 Here are the class methods for this module that can be called on the
 class name.
@@ -97,50 +97,27 @@ sub new {
     return $self;
 }
 
-sub install_etc {
-    my $self = shift;
-    return '/etc/network'                    if -d '/etc/network';
-    return '/etc/sysconfig/network-scripts'  if -d '/etc/sysconfig/network-scripts';
-    return '/etc';
-}
+=head2 $bal->set_routes_and_firewall
 
-=head2 $file = Net::ISP::Balance->default_conf_file
+Once the Balance objecty is created, call set_routes_and_firewall() to
+configure the routing tables and firewall for load balancing. These
+rules will either be executed on the system, or printed to standard
+output as a series of shell script commands if echo_only() is set to
+true.
 
-Returns the path to the default configuration file,
-$ETC_NETWORK/balance.conf.
+The routing tables and firewall rules are based on the configuration
+described in balance.conf (usually /etc/network/balance.conf or
+/etc/sysconfig/network-scripts/balance.conf). You may add custom
+routes and rules by creating files in /etc/network/balance/routes and
+/etc/network/balance/firewall
+(/etc/sysconfig/network-scripts/balance/{routes,firewalls} on
+RedHat/CentOS systems). The former contains a series of files or perl
+scripts that define additional routing rules. The latter contains
+files or perl scripts that define additional firewall rules.
 
-=cut
-
-sub default_conf_file {
-    my $self = shift;
-    return $self->install_etc.'/balance.conf';
-}
-
-=head2 $file_or_dir = Net::ISP::Balance->default_interface_file
-
-Returns the path to the place where the system stores its network
-configuration information. On Ubuntu/Debian-derived systems, this will
-be the file /etc/network/interfaces. On RedHad/CentOS-derived systems,
-this is the directory named /etc/sysconfig/network-scripts/ which
-contains a series of ifcfg-* files.
-
-=cut
-
-sub default_interface_file {
-    my $self = shift;
-    return '/etc/network/interfaces'        if -d '/etc/network';
-    return '/etc/sysconfig/network-scripts' if -d '/etc/sysconfig/network-scripts';
-    die "I don't know where to find network interface configuration files on this system";
-}
-
-=head2 $dir = Net::ISP::Balance->default_rules_directory
-
-Returns the path to the directory where the additional router and
-firewall rules are stored. On Ubuntu-Debian-derived systems, this is
-/etc/network/balance/. On RedHat/CentOS systems, this is
-/etc/sysconfig/network-scripts/balance/.
-
-Contained in this directory are subdirectories named "routes" and
+Any files you put into these directories will be read in alphabetic
+order and added to the routes and/or firewall rules emitted by the
+load balancing script.Contained in this directory are subdirectories named "routes" and
 "firewall". The former contains a series of files or perl scripts that
 define additional routing rules. The latter contains files or perl
 scripts that define additional firewall rules.
@@ -189,104 +166,54 @@ variable $B will contain an initialized instance of a
 Net::ISP::Balance object. You may then make method calls on this
 object to emit firewall and routing rules.
 
-=cut
+A typical routing rules file will look like the example shown
+below.
 
-sub default_rules_directory {
-    my $self = shift;
-    return '/etc/network/balance'                   if -d '/etc/network';
-    return '/etc/sysconfig/network-scripts/balance' if -d '/etc/sysconfig/network-scripts';
-    die "I don't know where to place the balancer rules on this system";
-}
+ # file: /etc/network/balance/01.my_routes
+ ip route add 192.168.100.1  dev eth0 src 198.162.1.14
+ ip route add 192.168.1.0/24 dev eth2 src 10.0.0.4
 
-=head2 $file = Net::ISP::Balance->default_lsm_conf_file
+Each line will be sent to the shell, and it is intended (but not
+required) that these be calls to the "ip" command. General shell
+scripting constructs are not allowed here.
 
-Returns the path to the place where we should store lsm.conf, the file
-used to configure the lsm (link status monitor) application.
+A typical firewall rules file will look like the example shown here:
 
-On Ubuntu/Debian-derived systems, this will be the file
-/etc/network/lsm.conf. On RedHad/CentOS-derived systems, this will be
-/etc/sysconfig/network-scripts/lsm.conf.
+ # file: /etc/network/firewall/01.my_firewall_rules
 
-=cut
+ # accept incoming telnet connections to the router
+ iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT
 
-sub default_lsm_conf_file {
-    my $self = shift;
-    return '/etc/network/lsm.conf'                   if -d '/etc/network';
-    return '/etc/sysconfig/network-scripts/lsm.conf' if -d '/etc/sysconfig/network-scripts';
-    return '/etc/lsm.conf';
-}
+ # masquerade connections to the DSL modem's control interface
+ iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE
 
-=head2 $dir = Net::ISP::Balance->default_lsm_scripts_dir
+You may also insert routing and firewall rules via fragments of Perl
+code, which is convenient because you don't have to hard-code any
+network addresses and can make use of a variety of shortcuts. To do
+this, simply end the file's name with .pl and make it executable.
 
-Returns the path to the place where lsm stores its helper scripts.  On
-Ubuntu/Debian-derived systems, this will be the directory
-/etc/network/lsm/. On RedHad/CentOS-derived systems, this will be
-/etc/sysconfig/network-scripts/lsm/.
+Here's an example that defines a series of port forwarding rules for
+incoming connections:
 
-=cut
+ # file: /etc/network/firewall/02.forwardings.pl 
 
-sub default_lsm_scripts_dir {
-    my $self = shift;
-    return '/etc/network/lsm/'                   if -d '/etc/network';
-    return '/etc/sysconfig/network-scripts/lsm/' if -d '/etc/sysconfig/network-scripts';
-    return '/etc/lsm';
-}
+ $B->forward(80 => '192.168.10.35'); # forward port 80 to internal web server
+ $B->forward(443=> '192.168.10.35'); # forward port 443 to 
+ $B->forward(23 => '192.168.10.35:22'); # forward port 23 to ssh on  web sever
 
-=head1 OBJECT METHODS
-
-These are methods that can be called once the Net::ISP::Balance object
-is created.
-
-=head2 $file = $bal->bal_conf_file([$new_file])
-
-Get/set the main configuration file path, balance.conf.
+The main thing to know is that on entry to the script the global
+variable $B will contain an initialized instance of a
+Net::ISP::Balance object. You may then make method calls on this
+object to emit firewall and routing rules.
 
 =cut
 
-sub bal_conf_file {
+sub set_routes_and_firewall {
     my $self = shift;
-    my $d   = $self->{bal_conf_file};
-    $self->{bal_conf_file} = shift if @_;
-    $d;
-}
-
-=head2 $dir = $bal->rules_directory([$new_rules_directory])
-
-Get/set the route and firewall rules directory.
-
-=cut
-
-sub rules_directory {
-    my $self = shift;
-    my $d   = $self->{rules_directory};
-    $self->{rules_directory} = shift if @_;
-    $d;
-}
-
-=head2 $file = $bal->lsm_conf_file([$new_conffile])
-
-Get/set the path to the lsm configuration file.
-
-=cut
-
-sub lsm_conf_file {
-    my $self = shift;
-    my $d   = $self->{lsm_conf_file};
-    $self->{lsm_conf_file} = shift if @_;
-    $d;
-}
-
-=head2 $dir = $bal->lsm_scripts_dir([$new_dir])
-
-Get/set the path to the lsm scripts directory.
-
-=cut
-
-sub lsm_scripts_dir {
-    my $self = shift;
-    my $d   = $self->{lsm_scripts_dir};
-    $self->{lsm_scripts_dir} = shift if @_;
-    $d;
+    $self->enable_forwarding(0);
+    $self->set_routes();
+    $self->set_firewall();
+    $self->enable_forwarding(1);
 }
 
 =head2 $verbose = $bal->verbose([boolean]);
@@ -305,19 +232,6 @@ sub verbose {
     $d;
 }
 
-=head2 $verbose = $bal->iptables_verbose([boolean])
-
-Makes iptables log applied rules verbosely to syslog.
-
-=cut
-
-sub iptables_verbose {
-    my $self = shift;
-    my $d    = $self->{iptables_verbose};
-    $self->{iptables_verbose} = shift if @_;
-    $d;
-}
-
 =head2 $echo = $bal->echo_only([boolean]);
 
 Get/set the echo_only flag. If this is true (default false), then
@@ -332,6 +246,144 @@ sub echo_only {
     $self->{echo_only} = shift if @_;
     $d;
 }
+
+=head2 $result_code = $bal->sh(@args)
+
+Pass @args to the shell for execution. If echo_only() is set to true,
+the command will not be executed, but instead be printed to standard
+output.
+
+Example:
+
+ $bal->sh('ip rule flush');
+
+The result code is the same as CORE::system().
+
+=cut
+
+sub sh {
+    my $self = shift;
+    my @args  = @_;
+    my $arg   = join ' ',@args;
+    chomp($arg);
+    carp $arg   if $self->verbose;
+    if ($self->echo_only) {
+	$arg .= "\n";
+	print $arg;
+    } else {
+	system $arg;
+    }
+}
+
+=head2 $bal->iptables(@args), but not executed.
+
+Invoke sh() to call "iptables @args". 
+
+Example:
+
+ $bal->iptables('-A OUTPUT -o eth0 -j DROP');
+
+You may pass an array reference to iptables(), in which case iptables
+is called on each member of the array in turn.
+
+Example:
+
+ $bal->iptables(['-P OUTPUT  DROP',
+                 '-P INPUT   DROP',
+                 '-P FORWARD DROP']);
+
+Note that the method keeps track of rules; if you try to enter the
+same iptables rule more than once the redundant ones will be ignored.
+
+=cut
+
+my %seen_rule;
+
+sub iptables {
+    my $self = shift;
+    if (ref $_[0] eq 'ARRAY') {
+	$seen_rule{$_}++ || $self->sh('iptables',$_) foreach @{$_[0]};
+    } else {
+	$seen_rule{"@_"} || $self->sh('iptables',@_)
+    }
+}
+
+=head2 $bal->forward($incoming_port,$destination_host,@protocols)
+
+This method emits appropriate port/host forwarding rules. Destination host can
+accept any of these forms:
+
+  192.168.100.1       # forward to same port as incoming
+  192.168.100.1:8080  # forward to a different port on host
+
+Protocols are one or more of 'tcp','udp'. If omitted  defaults to tcp.
+
+Examples:
+  
+    $bal->forward(80 => '192.168.100.1');
+    $bal->forward(80 => '192.168.100.1:8080','tcp');
+
+=cut
+
+sub forward {
+    my $self = shift;
+    my ($port,$host,@protocols) = @_;
+    @protocols = ('tcp') unless @protocols;
+
+    my ($dhost,$dport)   = split ':',$host;
+    $dhost         ||= $host;
+    $dport         ||= $port;
+
+    my @dev = map {$self->dev($_)} $self->isp_services;
+
+    for my $protocol (@protocols) {
+	$self->iptables("-t nat -A PREROUTING -p $protocol --dport $port -j DNAT --to-destination $host");
+	for my $lan ($self->lan_services) {
+	    my $landev = $self->dev($lan);
+	    my $lannet = $self->net($lan);
+	    my $lanip  = $self->ip($lan);
+	    my $syn    = $protocol eq 'tcp' ? '--syn' : '';
+	    $self->iptables("-A FORWARD -p $protocol -o $landev $syn -d $dhost --dport $dport -j ACCEPT");
+	    $self->iptables("-t nat -A POSTROUTING -p $protocol -d $dhost -o $landev --dport $dport -j SNAT --to $lanip");
+	}
+    }
+}
+
+=head2 $bal->ip_route(@args)
+
+Shortcut for $bal->sh('ip route',@args);
+
+=cut
+
+sub ip_route {shift->sh('ip','route',@_)}
+
+=head2 $bal->ip_rule(@args)
+
+Shortcut for $bal->sh('ip rule',@args);
+
+=cut
+
+sub ip_rule {shift->sh('ip','rule',@_)}
+
+=head2 $verbose = $bal->iptables_verbose([boolean])
+
+Makes iptables send an incredible amount of debugging information to
+syslog.
+
+=cut
+
+sub iptables_verbose {
+    my $self = shift;
+    my $d    = $self->{iptables_verbose};
+    $self->{iptables_verbose} = shift if @_;
+    $d;
+}
+
+=head1 QUERYING THE CONFIGURATION
+
+These methods allow you to get information about the Net::ISP::Balance
+object's configuration, including settings and other characteristics
+of the various network interfaces.
 
 =head2 @names = $bal->service_names
 
@@ -426,7 +478,6 @@ service. The keys are the service names. Here's an example:
       'running' => 1
  }
 
-
 =cut
 
 sub services { return shift->{services} }
@@ -485,6 +536,158 @@ sub _service_field {
     my $s = $self->{services}{$service} or return;
     $s->{$field};
 }
+
+=head1 FILES AND PATHS
+
+These are methods that determine where Net::ISP::Balance finds its
+configuration files.
+
+=head2 $path = Net::ISP::Balance->install_etc
+
+Returns the path to where the network configuration files reside on
+this system, e.g. /etc/network. Note that this only knows about
+Ubuntu/Debian-style network configuration files in /etc/network, and
+RedHat/CentOS network configuration files in
+/etc/sysconfig/network-scripts.
+
+=cut
+
+sub install_etc {
+    my $self = shift;
+    return '/etc/network'                    if -d '/etc/network';
+    return '/etc/sysconfig/network-scripts'  if -d '/etc/sysconfig/network-scripts';
+    return '/etc';
+}
+
+=head2 $file = Net::ISP::Balance->default_conf_file
+
+Returns the path to the default configuration file,
+$ETC_NETWORK/balance.conf.
+
+=cut
+
+sub default_conf_file {
+    my $self = shift;
+    return $self->install_etc.'/balance.conf';
+}
+
+=head2 $file_or_dir = Net::ISP::Balance->default_interface_file
+
+Returns the path to the place where the system stores its network
+configuration information. On Ubuntu/Debian-derived systems, this will
+be the file /etc/network/interfaces. On RedHad/CentOS-derived systems,
+this is the directory named /etc/sysconfig/network-scripts/ which
+contains a series of ifcfg-* files.
+
+=cut
+
+sub default_interface_file {
+    my $self = shift;
+    return '/etc/network/interfaces'        if -d '/etc/network';
+    return '/etc/sysconfig/network-scripts' if -d '/etc/sysconfig/network-scripts';
+    die "I don't know where to find network interface configuration files on this system";
+}
+
+=head2 $dir = Net::ISP::Balance->default_rules_directory
+
+Returns the path to the directory where the additional router and
+firewall rules are stored. On Ubuntu-Debian-derived systems, this is
+/etc/network/balance/. On RedHat/CentOS systems, this is
+/etc/sysconfig/network-scripts/balance/.
+
+=cut
+
+sub default_rules_directory {
+    my $self = shift;
+    return $self->install_etc."/balance";
+}
+
+=head2 $file = Net::ISP::Balance->default_lsm_conf_file
+
+Returns the path to the place where we should store lsm.conf, the file
+used to configure the lsm (link status monitor) application.
+
+On Ubuntu/Debian-derived systems, this will be the file
+/etc/network/lsm.conf. On RedHad/CentOS-derived systems, this will be
+/etc/sysconfig/network-scripts/lsm.conf.
+
+=cut
+
+sub default_lsm_conf_file {
+    my $self = shift;
+    return $self->install_etc."/lsm.conf";
+}
+
+=head2 $dir = Net::ISP::Balance->default_lsm_scripts_dir
+
+Returns the path to the place where lsm stores its helper scripts.  On
+Ubuntu/Debian-derived systems, this will be the directory
+/etc/network/lsm/. On RedHad/CentOS-derived systems, this will be
+/etc/sysconfig/network-scripts/lsm/.
+
+=cut
+
+sub default_lsm_scripts_dir {
+    my $self = shift;
+    return $self->install_etc.'/lsm/';
+}
+
+=head2 $file = $bal->bal_conf_file([$new_file])
+
+Get/set the main configuration file path, balance.conf.
+
+=cut
+
+sub bal_conf_file {
+    my $self = shift;
+    my $d   = $self->{bal_conf_file};
+    $self->{bal_conf_file} = shift if @_;
+    $d;
+}
+
+=head2 $dir = $bal->rules_directory([$new_rules_directory])
+
+Get/set the route and firewall rules directory.
+
+=cut
+
+sub rules_directory {
+    my $self = shift;
+    my $d   = $self->{rules_directory};
+    $self->{rules_directory} = shift if @_;
+    $d;
+}
+
+=head2 $file = $bal->lsm_conf_file([$new_conffile])
+
+Get/set the path to the lsm configuration file.
+
+=cut
+
+sub lsm_conf_file {
+    my $self = shift;
+    my $d   = $self->{lsm_conf_file};
+    $self->{lsm_conf_file} = shift if @_;
+    $d;
+}
+
+=head2 $dir = $bal->lsm_scripts_dir([$new_dir])
+
+Get/set the path to the lsm scripts directory.
+
+=cut
+
+sub lsm_scripts_dir {
+    my $self = shift;
+    my $d   = $self->{lsm_scripts_dir};
+    $self->{lsm_scripts_dir} = shift if @_;
+    $d;
+}
+
+=head1 INFREQUENTLY-USED METHODS
+
+These are methods that are used internally, but may be useful to
+applications developers.
 
 =head2 $lsm_config_text = $bal->lsm_config_file(-warn_email=>'root@localhost')
 
@@ -700,61 +903,14 @@ sub _get_centos_ifcfg {
     return (\%iface_type,\%gw);
 }
 
-# e.g. sh "ip route flush table main";
-=head2 $bal->sh(@args)
+=head2 $info = $bal->get_ppp_info($dev)
 
-Either pass @args to the shell for execution, or print to stdout, depending on
-setting of echo_only().
-
-=cut
-
-sub sh {
-    my $self = shift;
-    my @args  = @_;
-    my $arg   = join ' ',@args;
-    chomp($arg);
-    carp $arg   if $self->verbose;
-    if ($self->echo_only) {
-	$arg .= "\n";
-	print $arg;
-    } else {
-	system $arg;
-    }
-}
-
-
-=head2 $bal->iptables(@args)
-
-Invoke sh() to call "iptables @args".
+This nmethod returns a hashref containing information about a PPP
+network interface device, including IP address, gateway, network, and
+netmask. The $dev argument is a standard Linux network device name
+such as "ppp0".
 
 =cut
-
-my %seen_rule;
-
-sub iptables {
-    my $self = shift;
-    if (ref $_[0] eq 'ARRAY') {
-	$seen_rule{$_}++ || $self->sh('iptables',$_) foreach @{$_[0]};
-    } else {
-	$seen_rule{"@_"} || $self->sh('iptables',@_)
-    }
-}
-
-=head2 $bal->ip_route(@args)
-
-Invoke sh() to call "ip route @args".
-
-=cut
-
-sub ip_route {shift->sh('ip','route',@_)}
-
-=head2 $bal->ip_rule(@args)
-
-Invoke sh() to call "ip rule @args".
-
-=cut
-
-sub ip_rule {shift->sh('ip','rule',@_)}
 
 sub get_ppp_info {
     my $self     = shift;
@@ -773,6 +929,14 @@ sub get_ppp_info {
 	    fwmark => undef,};
 }
 
+=head2 $info = $bal->get_static_info($deb)
+
+This nmethod returns a hashref containing information about a
+statically-defined network interface device, including IP address,
+gateway, network, and netmask. The $dev argument is a standard Linux
+network device name such as "etho0".
+
+=cut
 
 
 sub get_static_info {
@@ -790,6 +954,15 @@ sub get_static_info {
 	    net => "$block",
 	    fwmark => undef,};
 }
+
+=head2 $info = $bal->get_dhcp_info($deb)
+
+This nmethod returns a hashref containing information about a network
+interface device that is configured via dhcp, including IP address,
+gateway, network, and netmask. The $dev argument is a standard Linux
+network device name such as "eth0".
+
+=cut
 
 sub get_dhcp_info {
     my $self     = shift;
@@ -831,6 +1004,14 @@ sub get_dhcp_info {
     };
 }
 
+=head2 $path = $bal->find_dhclient_leases($dev)
+
+This method finds the dhclient configuration file corresponding to
+DHCP-managed device $dev. The device is a standard device name such as
+"eth0".
+
+=cut
+
 sub find_dhclient_leases {
     my $self     = shift;
     my $device = shift;
@@ -865,19 +1046,10 @@ sub _ifconfig {
 
 #################################### here are the routing rules ###################
 
-=head2 $bal->set_routes_and_firewall
+=head2 $bal->set_routes()
 
-=cut
-
-sub set_routes_and_firewall {
-    my $self = shift;
-    $self->enable_forwarding(0);
-    $self->set_routes();
-    $self->set_firewall();
-    $self->enable_forwarding(1);
-}
-
-=head2 $bal->set_routes
+This method is called by set_routes_and_firewall() to emit the rules
+needed to create the load balancing routing tables.
 
 =cut
 
@@ -887,7 +1059,10 @@ sub set_routes {
     $self->local_routing_rules();
 }
 
-=head2 $bal->set_routes
+=head2 $bal->set_firewall
+
+This method is called by set_routes_and_firewall() to emit the rules
+needed to create the balancing firewall.
 
 =cut
 
@@ -911,6 +1086,9 @@ sub enable_forwarding {
     $self->sh("echo $enable > /proc/sys/net/ipv4/ip_forward");
 }
 =head2 $bal->routing_rules()
+
+This method is called by set_routes() to emit the rules
+needed to create the routing rules.
 
 =cut
 
@@ -980,9 +1158,11 @@ sub _create_service_routing_tables {
     }
 }
 
-=head2 $bal->local_routing_rules
+=head2 $bal->local_routing_rules()
 
-Execute tables and perl scripts found in the routes subdirectory
+This method is called by set_routes() to process the fules and emit
+the commands contained in the customized route files located in
+$ETC_DIR/balance/routes.
 
 =cut
 
@@ -993,9 +1173,11 @@ sub local_routing_rules {
     $self->_execute_rules_files(@files);
 }
 
-=head2 $bal->local_fw_rules
+=head2 $bal->local_fw_rules()
 
-Execute tables and perl scripts found in the firewall subdirectory
+This method is called by set_firewall() to process the fules and emit
+the commands contained in the customized route files located in
+$ETC_DIR/balance/firewall.
 
 =cut
 
@@ -1032,7 +1214,8 @@ sub _execute_rules_files {
 
 =head2 $bal->base_fw_rules()
 
-Set up basic firewall rules, including default rules and reporting
+This method is called by set_firewall() to set up basic firewall
+rules, including default rules and reporting.
 
 =cut
 
@@ -1091,6 +1274,13 @@ END
     }
 }
 
+=head2 $bal->balancing_fw_rules()
+
+This method is called by set_firewall() to set up the mangle/fwmark
+rules for balancing outgoing connections.
+
+=cut 
+
 sub balancing_fw_rules {
     my $self = shift;
 
@@ -1144,16 +1334,15 @@ END
 
 =head2 $bal->sanity_fw_rules()
 
-This creates a sensible series of firewall rules that seeks to prevent
-spoofing, flooding, and other antisocial behavior. It also enables
-UDP-based network time and domain name service.
+This is called by set_firewall() to create a sensible series of
+firewall rules that seeks to prevent spoofing, flooding, and other
+antisocial behavior. It also enables UDP-based network time and domain
+name service.
 
 =cut
 
 sub sanity_fw_rules {
     my $self = shift;
-
-    
 
     # if any of the devices are ppp, then we clamp the mss
     my @ppp_devices = grep {/ppp\d+/} map {$self->dev($_)} $self->isp_services;
@@ -1225,7 +1414,7 @@ sub sanity_fw_rules {
 
 =head2 $bal->nat_fw_rules()
 
-Set up basic NAT rules for lan traffic over ISP
+This is called by set_firewall() to set up basic NAT rules for lan traffic over ISP
 
 =cut
 
@@ -1235,46 +1424,24 @@ sub nat_fw_rules {
 	foreach $self->isp_services;
 }
 
-=head2 $bal->forward($incoming_port,$destination_host,@protocols)
+1;
 
-Creates appropriate port/host forwarding rules. Destination host can
-accept any of these forms:
+=head1 BUGS
 
-  192.168.100.1       # forward to same port as incoming
-  192.168.100.1:8080  # forward to a different port on host
+Please report bugs to GitHub: https://github.com/lstein/Net-ISP-Balance.
 
-Protocols are one or more of 'tcp','udp'. If omitted  defaults to tcp.
+=head1 AUTHOR
 
-Examples:
-  
-    $bal->forward(80 => '192.168.100.1');
-    $bal->forward(80 => '192.168.100.1:8080','tcp');
+Copyright 2014, Lincoln D. Stein (lincoln.stein@gmail.com)
+
+Senior Principal Investigator,
+Ontario Institute for Cancer Research
+
+=head1 LICENSE
+
+This package is distributed under the terms of the Perl Artistic
+License 2.0. See http://www.perlfoundation.org/artistic_license_2_0.
 
 =cut
 
-sub forward {
-    my $self = shift;
-    my ($port,$host,@protocols) = @_;
-    @protocols = ('tcp') unless @protocols;
-
-    my ($dhost,$dport)   = split ':',$host;
-    $dhost         ||= $host;
-    $dport         ||= $port;
-
-    my @dev = map {$self->dev($_)} $self->isp_services;
-
-    for my $protocol (@protocols) {
-	$self->iptables("-t nat -A PREROUTING -p $protocol --dport $port -j DNAT --to-destination $host");
-	for my $lan ($self->lan_services) {
-	    my $landev = $self->dev($lan);
-	    my $lannet = $self->net($lan);
-	    my $lanip  = $self->ip($lan);
-	    my $syn    = $protocol eq 'tcp' ? '--syn' : '';
-	    $self->iptables("-A FORWARD -p $protocol -o $landev $syn -d $dhost --dport $dport -j ACCEPT");
-	    $self->iptables("-t nat -A POSTROUTING -p $protocol -d $dhost -o $landev --dport $dport -j SNAT --to $lanip");
-	}
-    }
-}
-
-1;
-
+__END__

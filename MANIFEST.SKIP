@@ -76,3 +76,5 @@
 \.o$
 \.old$
 
+^lsm/lsm$
+^lsm/Makefile.depend

@@ -1,0 +1,629 @@
+<?xml version="1.0" ?>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<!-- saved from url=(0017)http://localhost/ -->
+<title>Net::ISP::Balance - Support load balancing across multiple internet service providers</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body style="background-color: white">
+<table border="0" width="100%" cellspacing="0" cellpadding="3">
+<tr><td class="block" style="background-color: #cccccc" valign="middle">
+<big><strong><span class="block">&nbsp;Net::ISP::Balance - Support load balancing across multiple internet service providers</span></strong></big>
+</td></tr>
+</table>
+
+
+<!-- INDEX BEGIN -->
+<div name="index">
+<p><a name="__index__"></a></p>
+
+<ul>
+
+	<li><a href="#name">NAME</a></li>
+	<li><a href="#synopsis">SYNOPSIS</a></li>
+	<li><a href="#frequently_used_methods">FREQUENTLY-USED METHODS</a></li>
+	<ul>
+
+		<li><a href="#_bal___net__isp__balance__new___path_to_config_file_conf____path_to_interfaces___">$bal = Net::ISP::Balance-&gt;new('/path/to/config_file.conf','/path/to/interfaces');</a></li>
+		<li><a href="#_bal__set_routes_and_firewall">$bal-&gt;set_routes_and_firewall</a></li>
+		<li><a href="#_verbose____bal__verbose__boolean___">$verbose = $bal-&gt;verbose([boolean]);</a></li>
+		<li><a href="#_echo____bal__echo_only__boolean___">$echo = $bal-&gt;echo_only([boolean]);</a></li>
+		<li><a href="#_result_code____bal__sh__args_">$result_code = $bal-&gt;<code>sh(@args)</code></a></li>
+		<li><a href="#_bal__iptables__args___but_not_executed_">$bal-&gt;<code>iptables(@args)</code>, but not executed.</a></li>
+		<li><a href="#_bal__forward__incoming_port__destination_host__protocols_">$bal-&gt;<code>forward($incoming_port,$destination_host,@protocols)</code></a></li>
+		<li><a href="#_bal__ip_route__args_">$bal-&gt;<code>ip_route(@args)</code></a></li>
+		<li><a href="#_bal__ip_rule__args_">$bal-&gt;<code>ip_rule(@args)</code></a></li>
+		<li><a href="#_verbose____bal__iptables_verbose__boolean__">$verbose = $bal-&gt;iptables_verbose([boolean])</a></li>
+	</ul>
+
+	<li><a href="#querying_the_configuration">QUERYING THE CONFIGURATION</a></li>
+	<ul>
+
+		<li><a href="#_names____bal__service_names">@names = $bal-&gt;service_names</a></li>
+		<li><a href="#_names____bal__isp_services">@names = $bal-&gt;isp_services</a></li>
+		<li><a href="#_names____bal__lan_services">@names = $bal-&gt;lan_services</a></li>
+		<li><a href="#_up____bal__up__up_services_">@up = $bal-&gt;<code>up(@up_services)</code></a></li>
+		<li><a href="#_services____bal__services">$services = $bal-&gt;services</a></li>
+		<li><a href="#_service____bal__service__cable__">$service = $bal-&gt;service('CABLE')</a></li>
+		<li><a href="#_dev____bal__dev__cable__">$dev = $bal-&gt;dev('CABLE')</a></li>
+		<li><a href="#_ip____bal__ip__cable__">$ip = $bal-&gt;ip('CABLE')</a></li>
+		<li><a href="#_gateway____bal__gw__cable__">$gateway = $bal-&gt;gw('CABLE')</a></li>
+		<li><a href="#_network____bal__net__cable__">$network = $bal-&gt;net('CABLE')</a></li>
+		<li><a href="#_role____bal__role__cable__">$role = $bal-&gt;role('CABLE')</a></li>
+		<li><a href="#_running____bal__running__cable__">$running = $bal-&gt;running('CABLE')</a></li>
+		<li><a href="#_mark_number____bal__fwmark__cable__">$mark_number = $bal-&gt;fwmark('CABLE')</a></li>
+		<li><a href="#_routing_table_number____bal__table__cable__">$routing_table_number = $bal-&gt;table('CABLE')</a></li>
+		<li><a href="#_ping_dest____bal__ping__cable__">$ping_dest   = $bal-&gt;ping('CABLE')</a></li>
+	</ul>
+
+	<li><a href="#files_and_paths">FILES AND PATHS</a></li>
+	<ul>
+
+		<li><a href="#_path___net__isp__balance__install_etc">$path = Net::ISP::Balance-&gt;install_etc</a></li>
+		<li><a href="#_file___net__isp__balance__default_conf_file">$file = Net::ISP::Balance-&gt;default_conf_file</a></li>
+		<li><a href="#_file_or_dir___net__isp__balance__default_interface_file">$file_or_dir = Net::ISP::Balance-&gt;default_interface_file</a></li>
+		<li><a href="#_dir___net__isp__balance__default_rules_directory">$dir = Net::ISP::Balance-&gt;default_rules_directory</a></li>
+		<li><a href="#_file___net__isp__balance__default_lsm_conf_file">$file = Net::ISP::Balance-&gt;default_lsm_conf_file</a></li>
+		<li><a href="#_dir___net__isp__balance__default_lsm_scripts_dir">$dir = Net::ISP::Balance-&gt;default_lsm_scripts_dir</a></li>
+		<li><a href="#_file____bal__bal_conf_file___new_file__">$file = $bal-&gt;<code>bal_conf_file([$new_file])</code></a></li>
+		<li><a href="#_dir____bal__rules_directory___new_rules_directory__">$dir = $bal-&gt;<code>rules_directory([$new_rules_directory])</code></a></li>
+		<li><a href="#_file____bal__lsm_conf_file___new_conffile__">$file = $bal-&gt;<code>lsm_conf_file([$new_conffile])</code></a></li>
+		<li><a href="#_dir____bal__lsm_scripts_dir___new_dir__">$dir = $bal-&gt;<code>lsm_scripts_dir([$new_dir])</code></a></li>
+	</ul>
+
+	<li><a href="#infrequently_used_methods">INFREQUENTLY-USED METHODS</a></li>
+	<ul>
+
+		<li><a href="#_lsm_config_text____bal__lsm_config_file__warn_email___root_localhost__">$lsm_config_text = $bal-&gt;lsm_config_file(-warn_email=&gt;'root@localhost')</a></li>
+		<li><a href="#_info____bal__get_ppp_info__dev_">$info = $bal-&gt;<code>get_ppp_info($dev)</code></a></li>
+		<li><a href="#_info____bal__get_static_info__deb_">$info = $bal-&gt;<code>get_static_info($deb)</code></a></li>
+		<li><a href="#_info____bal__get_dhcp_info__deb_">$info = $bal-&gt;<code>get_dhcp_info($deb)</code></a></li>
+		<li><a href="#_path____bal__find_dhclient_leases__dev_">$path = $bal-&gt;<code>find_dhclient_leases($dev)</code></a></li>
+		<li><a href="#_bal__set_routes__">$bal-&gt;<code>set_routes()</code></a></li>
+		<li><a href="#_bal__set_firewall">$bal-&gt;set_firewall</a></li>
+		<li><a href="#_bal__enable_forwarding__boolean_">$bal-&gt;<code>enable_forwarding($boolean)</code></a></li>
+		<li><a href="#_bal__local_routing_rules__">$bal-&gt;<code>local_routing_rules()</code></a></li>
+		<li><a href="#_bal__local_fw_rules__">$bal-&gt;<code>local_fw_rules()</code></a></li>
+		<li><a href="#_bal__base_fw_rules__">$bal-&gt;<code>base_fw_rules()</code></a></li>
+		<li><a href="#_bal__balancing_fw_rules__">$bal-&gt;<code>balancing_fw_rules()</code></a></li>
+		<li><a href="#_bal__sanity_fw_rules__">$bal-&gt;<code>sanity_fw_rules()</code></a></li>
+		<li><a href="#_bal__nat_fw_rules__">$bal-&gt;<code>nat_fw_rules()</code></a></li>
+	</ul>
+
+	<li><a href="#bugs">BUGS</a></li>
+	<li><a href="#author">AUTHOR</a></li>
+	<li><a href="#license">LICENSE</a></li>
+</ul>
+
+<hr name="index" />
+</div>
+<!-- INDEX END -->
+
+<p>
+</p>
+<h1><a name="name">NAME</a></h1>
+<p>Net::ISP::Balance - Support load balancing across multiple internet service providers</p>
+<p>
+<a href="#__index__"><small>Back to Top</small></a>
+</p>
+<hr />
+<h1><a name="synopsis">SYNOPSIS</a></h1>
+<pre>
+ use Net::ISP::Balance;</pre>
+<pre>
+ # initialize the module with its configuration file
+ my $bal = Net::ISP::Balance-&gt;new('/etc/network/balance.conf');</pre>
+<pre>
+ $bal-&gt;verbose(1);    # verbosely print routing and firewall 
+                      #  commands to STDERR before running them.
+ $bal-&gt;echo_only(1);  # echo commands to STDOUT; don't execute them.</pre>
+<pre>
+ # mark the balanced services that are up
+ $bal-&gt;up('CABLE','DSL','SATELLITE');</pre>
+<pre>
+ # write out routing and firewall commands
+ $bal-&gt;set_routes_and_firewall();</pre>
+<pre>
+ # write out a forwarding rule
+ $bal-&gt;forward(80 =&gt; '192.168.10.35');  # forward web requests to this host</pre>
+<pre>
+ # write out an arbitrary routing rule
+ $bal-&gt;ip_route('add 192.168.100.1  dev eth0 src 198.162.1.14');</pre>
+<pre>
+ # write out an arbitrary iptables rule
+ $bal-&gt;iptables('-A INCOMING -p tcp --dport 6000 -j REJECT');</pre>
+<pre>
+ # get information about all services
+ my @s = $bal-&gt;service_names;
+ for my $s (@s) {
+    print $bal-&gt;dev($s);
+    print $bal-&gt;ip($s);
+    print $bal-&gt;gw($s);
+    print $bal-&gt;net($s);
+    print $bal-&gt;fwmark($s);
+    print $bal-&gt;table($s);
+    print $bal-&gt;running($s);
+ }</pre>
+<p>
+<a href="#__index__"><small>Back to Top</small></a>
+</p>
+<hr />
+<h1><a name="frequently_used_methods">FREQUENTLY-USED METHODS</a></h1>
+<p>Here are the class methods for this module that can be called on the
+class name.</p>
+<p>
+</p>
+<h2><a name="_bal___net__isp__balance__new___path_to_config_file_conf____path_to_interfaces___">$bal = Net::ISP::Balance-&gt;new('/path/to/config_file.conf','/path/to/interfaces');</a></h2>
+<p>Creates a new balancer object.</p>
+<p>The first optional argument is the balancer configuration file, which
+defaults to /etc/network/balance.conf on Ubuntu/Debian-derived
+systems, and /etc/sysconfig/network-scripts/balance.conf on
+RedHat/CentOS-derived systems. From hereon, we'll refer to the base of
+the various configuration files as $ETC_NETWORK.</p>
+<p>The second optional argument is the system network interfaces file,
+defaulting to $ETC_NETWORK/interfaces.</p>
+<p>
+</p>
+<h2><a name="_bal__set_routes_and_firewall">$bal-&gt;set_routes_and_firewall</a></h2>
+<p>Once the Balance objecty is created, call <code>set_routes_and_firewall()</code> to
+configure the routing tables and firewall for load balancing. These
+rules will either be executed on the system, or printed to standard
+output as a series of shell script commands if <code>echo_only()</code> is set to
+true.</p>
+<p>The routing tables and firewall rules are based on the configuration
+described in balance.conf (usually /etc/network/balance.conf or
+/etc/sysconfig/network-scripts/balance.conf). You may add custom
+routes and rules by creating files in /etc/network/balance/routes and
+/etc/network/balance/firewall
+(/etc/sysconfig/network-scripts/balance/{routes,firewalls} on
+RedHat/CentOS systems). The former contains a series of files or perl
+scripts that define additional routing rules. The latter contains
+files or perl scripts that define additional firewall rules.</p>
+<p>Any files you put into these directories will be read in alphabetic
+order and added to the routes and/or firewall rules emitted by the
+load balancing script.Contained in this directory are subdirectories named &quot;routes&quot; and
+&quot;firewall&quot;. The former contains a series of files or perl scripts that
+define additional routing rules. The latter contains files or perl
+scripts that define additional firewall rules.</p>
+<p>Any files you put into these directories will be read in alphabetic
+order and added to the routes and/or firewall rules emitted by the
+load balancing script.</p>
+<p>A typical routing rules file will look like the example shown
+below.</p>
+<pre>
+ # file: /etc/network/balance/01.my_routes
+ ip route add 192.168.100.1  dev eth0 src 198.162.1.14
+ ip route add 192.168.1.0/24 dev eth2 src 10.0.0.4</pre>
+<p>Each line will be sent to the shell, and it is intended (but not
+required) that these be calls to the &quot;ip&quot; command. General shell
+scripting constructs are not allowed here.</p>
+<p>A typical firewall rules file will look like the example shown here:</p>
+<pre>
+ # file: /etc/network/firewall/01.my_firewall_rules</pre>
+<pre>
+ # accept incoming telnet connections to the router
+ iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT</pre>
+<pre>
+ # masquerade connections to the DSL modem's control interface
+ iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE</pre>
+<p>You may also insert routing and firewall rules via fragments of Perl
+code, which is convenient because you don't have to hard-code any
+network addresses and can make use of a variety of shortcuts. To do
+this, simply end the file's name with .pl and make it executable.</p>
+<p>Here's an example that defines a series of port forwarding rules for
+incoming connections:</p>
+<pre>
+ # file: /etc/network/firewall/02.forwardings.pl</pre>
+<pre>
+ $B-&gt;forward(80 =&gt; '192.168.10.35'); # forward port 80 to internal web server
+ $B-&gt;forward(443=&gt; '192.168.10.35'); # forward port 443 to 
+ $B-&gt;forward(23 =&gt; '192.168.10.35:22'); # forward port 23 to ssh on  web sever</pre>
+<p>The main thing to know is that on entry to the script the global
+variable $B will contain an initialized instance of a
+Net::ISP::Balance object. You may then make method calls on this
+object to emit firewall and routing rules.</p>
+<p>A typical routing rules file will look like the example shown
+below.</p>
+<pre>
+ # file: /etc/network/balance/01.my_routes
+ ip route add 192.168.100.1  dev eth0 src 198.162.1.14
+ ip route add 192.168.1.0/24 dev eth2 src 10.0.0.4</pre>
+<p>Each line will be sent to the shell, and it is intended (but not
+required) that these be calls to the &quot;ip&quot; command. General shell
+scripting constructs are not allowed here.</p>
+<p>A typical firewall rules file will look like the example shown here:</p>
+<pre>
+ # file: /etc/network/firewall/01.my_firewall_rules</pre>
+<pre>
+ # accept incoming telnet connections to the router
+ iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT</pre>
+<pre>
+ # masquerade connections to the DSL modem's control interface
+ iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE</pre>
+<p>You may also insert routing and firewall rules via fragments of Perl
+code, which is convenient because you don't have to hard-code any
+network addresses and can make use of a variety of shortcuts. To do
+this, simply end the file's name with .pl and make it executable.</p>
+<p>Here's an example that defines a series of port forwarding rules for
+incoming connections:</p>
+<pre>
+ # file: /etc/network/firewall/02.forwardings.pl</pre>
+<pre>
+ $B-&gt;forward(80 =&gt; '192.168.10.35'); # forward port 80 to internal web server
+ $B-&gt;forward(443=&gt; '192.168.10.35'); # forward port 443 to 
+ $B-&gt;forward(23 =&gt; '192.168.10.35:22'); # forward port 23 to ssh on  web sever</pre>
+<p>The main thing to know is that on entry to the script the global
+variable $B will contain an initialized instance of a
+Net::ISP::Balance object. You may then make method calls on this
+object to emit firewall and routing rules.</p>
+<p>
+</p>
+<h2><a name="_verbose____bal__verbose__boolean___">$verbose = $bal-&gt;verbose([boolean]);</a></h2>
+<p>sub bal_conf_file { my $self = shift; my $d = $self-&gt;{bal_conf_file};
+$self-&gt;{bal_conf_file} = shift if @_; $d; } Get/set verbosity of
+the module. If verbose is true, then firewall and routing rules
+will be echoed to STDERR before being executed on the system.</p>
+<p>
+</p>
+<h2><a name="_echo____bal__echo_only__boolean___">$echo = $bal-&gt;echo_only([boolean]);</a></h2>
+<p>Get/set the echo_only flag. If this is true (default false), then
+routing and firewall rules will be printed to STDOUT rathar than being
+executed.</p>
+<p>
+</p>
+<h2><a name="_result_code____bal__sh__args_">$result_code = $bal-&gt;<code>sh(@args)</code></a></h2>
+<p>Pass @args to the shell for execution. If <code>echo_only()</code> is set to true,
+the command will not be executed, but instead be printed to standard
+output.</p>
+<p>Example:</p>
+<pre>
+ $bal-&gt;sh('ip rule flush');</pre>
+<p>The result code is the same as CORE::system().</p>
+<p>
+</p>
+<h2><a name="_bal__iptables__args___but_not_executed_">$bal-&gt;<code>iptables(@args)</code>, but not executed.</a></h2>
+<p>Invoke <code>sh()</code> to call &quot;iptables @args&quot;.</p>
+<p>Example:</p>
+<pre>
+ $bal-&gt;iptables('-A OUTPUT -o eth0 -j DROP');</pre>
+<p>You may pass an array reference to <code>iptables()</code>, in which case iptables
+is called on each member of the array in turn.</p>
+<p>Example:</p>
+<pre>
+ $bal-&gt;iptables(['-P OUTPUT  DROP',
+                 '-P INPUT   DROP',
+                 '-P FORWARD DROP']);</pre>
+<p>Note that the method keeps track of rules; if you try to enter the
+same iptables rule more than once the redundant ones will be ignored.</p>
+<p>
+</p>
+<h2><a name="_bal__forward__incoming_port__destination_host__protocols_">$bal-&gt;<code>forward($incoming_port,$destination_host,@protocols)</code></a></h2>
+<p>This method emits appropriate port/host forwarding rules. Destination host can
+accept any of these forms:</p>
+<pre>
+  192.168.100.1       # forward to same port as incoming
+  192.168.100.1:8080  # forward to a different port on host</pre>
+<p>Protocols are one or more of 'tcp','udp'. If omitted  defaults to tcp.</p>
+<p>Examples:</p>
+<pre>
+
+    $bal-&gt;forward(80 =&gt; '192.168.100.1');
+    $bal-&gt;forward(80 =&gt; '192.168.100.1:8080','tcp');</pre>
+<p>
+</p>
+<h2><a name="_bal__ip_route__args_">$bal-&gt;<code>ip_route(@args)</code></a></h2>
+<p>Shortcut for $bal-&gt;sh('ip route',@args);</p>
+<p>
+</p>
+<h2><a name="_bal__ip_rule__args_">$bal-&gt;<code>ip_rule(@args)</code></a></h2>
+<p>Shortcut for $bal-&gt;sh('ip rule',@args);</p>
+<p>
+</p>
+<h2><a name="_verbose____bal__iptables_verbose__boolean__">$verbose = $bal-&gt;iptables_verbose([boolean])</a></h2>
+<p>Makes iptables send an incredible amount of debugging information to
+syslog.</p>
+<p>
+<a href="#__index__"><small>Back to Top</small></a>
+</p>
+<hr />
+<h1><a name="querying_the_configuration">QUERYING THE CONFIGURATION</a></h1>
+<p>These methods allow you to get information about the Net::ISP::Balance
+object's configuration, including settings and other characteristics
+of the various network interfaces.</p>
+<p>
+</p>
+<h2><a name="_names____bal__service_names">@names = $bal-&gt;service_names</a></h2>
+<p>Return the list of service names defined in balance.conf.</p>
+<p>
+</p>
+<h2><a name="_names____bal__isp_services">@names = $bal-&gt;isp_services</a></h2>
+<p>Return list of service names that correspond to load-balanced ISPs.</p>
+<p>
+</p>
+<h2><a name="_names____bal__lan_services">@names = $bal-&gt;lan_services</a></h2>
+<p>Return list of service names that correspond to lans.</p>
+<p>
+</p>
+<h2><a name="_up____bal__up__up_services_">@up = $bal-&gt;<code>up(@up_services)</code></a></h2>
+<p>Get or set the list of ISP interfaces that are currently active and
+should be used for balancing.</p>
+<p>
+</p>
+<h2><a name="_services____bal__services">$services = $bal-&gt;services</a></h2>
+<p>Return a hash containing the configuration information for  each
+service. The keys are the service names. Here's an example:</p>
+<pre>
+ {
+ 0  HASH(0x91201e8)
+   'CABLE' =&gt; HASH(0x9170500)
+      'dev' =&gt; 'eth0'
+      'fwmark' =&gt; 2
+      'gw' =&gt; '191.3.88.1'
+      'ip' =&gt; '191.3.88.152'
+      'net' =&gt; '191.3.88.128/27'
+      'ping' =&gt; 'www.google.ca'
+      'role' =&gt; 'isp'
+      'running' =&gt; 1
+      'table' =&gt; 2
+   'DSL' =&gt; HASH(0x9113e00)
+      'dev' =&gt; 'ppp0'
+      'fwmark' =&gt; 1
+      'gw' =&gt; '112.211.154.198'
+      'ip' =&gt; '11.120.199.108'
+      'net' =&gt; '112.211.154.198/32'
+      'ping' =&gt; 'www.google.ca'
+      'role' =&gt; 'isp'
+      'running' =&gt; 1
+      'table' =&gt; 1
+   'LAN' =&gt; HASH(0x913ce58)
+      'dev' =&gt; 'eth1'
+      'fwmark' =&gt; undef
+      'gw' =&gt; '192.168.10.1'
+      'ip' =&gt; '192.168.10.1'
+      'net' =&gt; '192.168.10.0/24'
+      'ping' =&gt; ''
+      'role' =&gt; 'lan'
+      'running' =&gt; 1
+ }</pre>
+<p>
+</p>
+<h2><a name="_service____bal__service__cable__">$service = $bal-&gt;service('CABLE')</a></h2>
+<p>Return the subhash describing the single named service (see <code>services()</code>
+above).</p>
+<p>
+</p>
+<h2><a name="_dev____bal__dev__cable__">$dev = $bal-&gt;dev('CABLE')</a></h2>
+<p>
+</p>
+<h2><a name="_ip____bal__ip__cable__">$ip = $bal-&gt;ip('CABLE')</a></h2>
+<p>
+</p>
+<h2><a name="_gateway____bal__gw__cable__">$gateway = $bal-&gt;gw('CABLE')</a></h2>
+<p>
+</p>
+<h2><a name="_network____bal__net__cable__">$network = $bal-&gt;net('CABLE')</a></h2>
+<p>
+</p>
+<h2><a name="_role____bal__role__cable__">$role = $bal-&gt;role('CABLE')</a></h2>
+<p>
+</p>
+<h2><a name="_running____bal__running__cable__">$running = $bal-&gt;running('CABLE')</a></h2>
+<p>
+</p>
+<h2><a name="_mark_number____bal__fwmark__cable__">$mark_number = $bal-&gt;fwmark('CABLE')</a></h2>
+<p>
+</p>
+<h2><a name="_routing_table_number____bal__table__cable__">$routing_table_number = $bal-&gt;table('CABLE')</a></h2>
+<p>
+</p>
+<h2><a name="_ping_dest____bal__ping__cable__">$ping_dest   = $bal-&gt;ping('CABLE')</a></h2>
+<p>These methods pull out the named information from the configuration
+data. <code>fwmark()</code> returns a small integer that will be used for marking
+connections for routing through one of the ISP connections when an
+outgoing connection originates on the LAN and is routed through the
+router. <code>table()</code> returns a small integer corresponding to a routing
+table used to route connections originating on the router itself.</p>
+<p>
+<a href="#__index__"><small>Back to Top</small></a>
+</p>
+<hr />
+<h1><a name="files_and_paths">FILES AND PATHS</a></h1>
+<p>These are methods that determine where Net::ISP::Balance finds its
+configuration files.</p>
+<p>
+</p>
+<h2><a name="_path___net__isp__balance__install_etc">$path = Net::ISP::Balance-&gt;install_etc</a></h2>
+<p>Returns the path to where the network configuration files reside on
+this system, e.g. /etc/network. Note that this only knows about
+Ubuntu/Debian-style network configuration files in /etc/network, and
+RedHat/CentOS network configuration files in
+/etc/sysconfig/network-scripts.</p>
+<p>
+</p>
+<h2><a name="_file___net__isp__balance__default_conf_file">$file = Net::ISP::Balance-&gt;default_conf_file</a></h2>
+<p>Returns the path to the default configuration file,
+$ETC_NETWORK/balance.conf.</p>
+<p>
+</p>
+<h2><a name="_file_or_dir___net__isp__balance__default_interface_file">$file_or_dir = Net::ISP::Balance-&gt;default_interface_file</a></h2>
+<p>Returns the path to the place where the system stores its network
+configuration information. On Ubuntu/Debian-derived systems, this will
+be the file /etc/network/interfaces. On RedHad/CentOS-derived systems,
+this is the directory named /etc/sysconfig/network-scripts/ which
+contains a series of ifcfg-* files.</p>
+<p>
+</p>
+<h2><a name="_dir___net__isp__balance__default_rules_directory">$dir = Net::ISP::Balance-&gt;default_rules_directory</a></h2>
+<p>Returns the path to the directory where the additional router and
+firewall rules are stored. On Ubuntu-Debian-derived systems, this is
+/etc/network/balance/. On RedHat/CentOS systems, this is
+/etc/sysconfig/network-scripts/balance/.</p>
+<p>
+</p>
+<h2><a name="_file___net__isp__balance__default_lsm_conf_file">$file = Net::ISP::Balance-&gt;default_lsm_conf_file</a></h2>
+<p>Returns the path to the place where we should store lsm.conf, the file
+used to configure the lsm (link status monitor) application.</p>
+<p>On Ubuntu/Debian-derived systems, this will be the file
+/etc/network/lsm.conf. On RedHad/CentOS-derived systems, this will be
+/etc/sysconfig/network-scripts/lsm.conf.</p>
+<p>
+</p>
+<h2><a name="_dir___net__isp__balance__default_lsm_scripts_dir">$dir = Net::ISP::Balance-&gt;default_lsm_scripts_dir</a></h2>
+<p>Returns the path to the place where lsm stores its helper scripts.  On
+Ubuntu/Debian-derived systems, this will be the directory
+/etc/network/lsm/. On RedHad/CentOS-derived systems, this will be
+/etc/sysconfig/network-scripts/lsm/.</p>
+<p>
+</p>
+<h2><a name="_file____bal__bal_conf_file___new_file__">$file = $bal-&gt;<code>bal_conf_file([$new_file])</code></a></h2>
+<p>Get/set the main configuration file path, balance.conf.</p>
+<p>
+</p>
+<h2><a name="_dir____bal__rules_directory___new_rules_directory__">$dir = $bal-&gt;<code>rules_directory([$new_rules_directory])</code></a></h2>
+<p>Get/set the route and firewall rules directory.</p>
+<p>
+</p>
+<h2><a name="_file____bal__lsm_conf_file___new_conffile__">$file = $bal-&gt;<code>lsm_conf_file([$new_conffile])</code></a></h2>
+<p>Get/set the path to the lsm configuration file.</p>
+<p>
+</p>
+<h2><a name="_dir____bal__lsm_scripts_dir___new_dir__">$dir = $bal-&gt;<code>lsm_scripts_dir([$new_dir])</code></a></h2>
+<p>Get/set the path to the lsm scripts directory.</p>
+<p>
+<a href="#__index__"><small>Back to Top</small></a>
+</p>
+<hr />
+<h1><a name="infrequently_used_methods">INFREQUENTLY-USED METHODS</a></h1>
+<p>These are methods that are used internally, but may be useful to
+applications developers.</p>
+<p>
+</p>
+<h2><a name="_lsm_config_text____bal__lsm_config_file__warn_email___root_localhost__">$lsm_config_text = $bal-&gt;lsm_config_file(-warn_email=&gt;'root@localhost')</a></h2>
+<p>This method creates the text used to create the lsm.conf configuration
+file. Pass it a series of -name=&gt;value pairs to incorporate into the
+file.</p>
+<p>Possible switches and their defaults are:</p>
+<pre>
+    -checkip                    127.0.0.1
+    -eventscript                /etc/network/lsm/balancer_event_script
+    -notifyscript               /etc/network/lsm/default_script
+    -max_packet_loss            15
+    -max_successive_pkts_lost    7
+    -min_packet_loss             5
+    -min_successive_pkts_rcvd   10
+    -interval_ms              1000
+    -timeout_ms               1000
+    -warn_email               root
+    -check_arp                   0
+    -sourceip                 &lt;autodiscovered&gt;
+    -device                   &lt;autodiscovered&gt;
+    -ttl                      0 &lt;use system value&gt;
+    -status                   2 &lt;no assumptions&gt;
+    -debug                    8 &lt;moderate verbosity from scale of 0 to 100&gt;</pre>
+<p>
+</p>
+<h2><a name="_info____bal__get_ppp_info__dev_">$info = $bal-&gt;<code>get_ppp_info($dev)</code></a></h2>
+<p>This nmethod returns a hashref containing information about a PPP
+network interface device, including IP address, gateway, network, and
+netmask. The $dev argument is a standard Linux network device name
+such as &quot;ppp0&quot;.</p>
+<p>
+</p>
+<h2><a name="_info____bal__get_static_info__deb_">$info = $bal-&gt;<code>get_static_info($deb)</code></a></h2>
+<p>This nmethod returns a hashref containing information about a
+statically-defined network interface device, including IP address,
+gateway, network, and netmask. The $dev argument is a standard Linux
+network device name such as &quot;etho0&quot;.</p>
+<p>
+</p>
+<h2><a name="_info____bal__get_dhcp_info__deb_">$info = $bal-&gt;<code>get_dhcp_info($deb)</code></a></h2>
+<p>This nmethod returns a hashref containing information about a network
+interface device that is configured via dhcp, including IP address,
+gateway, network, and netmask. The $dev argument is a standard Linux
+network device name such as &quot;eth0&quot;.</p>
+<p>
+</p>
+<h2><a name="_path____bal__find_dhclient_leases__dev_">$path = $bal-&gt;<code>find_dhclient_leases($dev)</code></a></h2>
+<p>This method finds the dhclient configuration file corresponding to
+DHCP-managed device $dev. The device is a standard device name such as
+&quot;eth0&quot;.</p>
+<p>
+</p>
+<h2><a name="_bal__set_routes__">$bal-&gt;<code>set_routes()</code></a></h2>
+<p>This method is called by <code>set_routes_and_firewall()</code> to emit the rules
+needed to create the load balancing routing tables.</p>
+<p>
+</p>
+<h2><a name="_bal__set_firewall">$bal-&gt;set_firewall</a></h2>
+<p>This method is called by <code>set_routes_and_firewall()</code> to emit the rules
+needed to create the balancing firewall.</p>
+<p>
+</p>
+<h2><a name="_bal__enable_forwarding__boolean_">$bal-&gt;<code>enable_forwarding($boolean)</code></a></h2>
+<p>
+</p>
+<h2><a name="_bal__local_routing_rules__">$bal-&gt;<code>local_routing_rules()</code></a></h2>
+<p>This method is called by <code>set_routes()</code> to process the fules and emit
+the commands contained in the customized route files located in
+$ETC_DIR/balance/routes.</p>
+<p>
+</p>
+<h2><a name="_bal__local_fw_rules__">$bal-&gt;<code>local_fw_rules()</code></a></h2>
+<p>This method is called by <code>set_firewall()</code> to process the fules and emit
+the commands contained in the customized route files located in
+$ETC_DIR/balance/firewall.</p>
+<p>
+</p>
+<h2><a name="_bal__base_fw_rules__">$bal-&gt;<code>base_fw_rules()</code></a></h2>
+<p>This method is called by <code>set_firewall()</code> to set up basic firewall
+rules, including default rules and reporting.</p>
+<p>
+</p>
+<h2><a name="_bal__balancing_fw_rules__">$bal-&gt;<code>balancing_fw_rules()</code></a></h2>
+<p>This method is called by <code>set_firewall()</code> to set up the mangle/fwmark
+rules for balancing outgoing connections.</p>
+<p>
+</p>
+<h2><a name="_bal__sanity_fw_rules__">$bal-&gt;<code>sanity_fw_rules()</code></a></h2>
+<p>This is called by <code>set_firewall()</code> to create a sensible series of
+firewall rules that seeks to prevent spoofing, flooding, and other
+antisocial behavior. It also enables UDP-based network time and domain
+name service.</p>
+<p>
+</p>
+<h2><a name="_bal__nat_fw_rules__">$bal-&gt;<code>nat_fw_rules()</code></a></h2>
+<p>This is called by <code>set_firewall()</code> to set up basic NAT rules for lan traffic over ISP</p>
+<p>
+<a href="#__index__"><small>Back to Top</small></a>
+</p>
+<hr />
+<h1><a name="bugs">BUGS</a></h1>
+<p>Please report bugs to GitHub: <a href="https://github.com/lstein/Net-ISP-Balance.">https://github.com/lstein/Net-ISP-Balance.</a></p>
+<p>
+<a href="#__index__"><small>Back to Top</small></a>
+</p>
+<hr />
+<h1><a name="author">AUTHOR</a></h1>
+<p>Copyright 2014, Lincoln D. Stein (<a href="mailto:lincoln.stein@gmail.com">lincoln.stein@gmail.com</a>)</p>
+<p>Senior Principal Investigator,
+Ontario Institute for Cancer Research</p>
+<p>
+<a href="#__index__"><small>Back to Top</small></a>
+</p>
+<hr />
+<h1><a name="license">LICENSE</a></h1>
+<p>This package is distributed under the terms of the Perl Artistic
+License 2.0. See <a href="http://www.perlfoundation.org/artistic_license_2_0.">http://www.perlfoundation.org/artistic_license_2_0.</a></p>
+<p><a href="#__index__"><small>Back to Top</small></a></p>
+<table border="0" width="100%" cellspacing="0" cellpadding="3">
+<tr><td class="block" style="background-color: #cccccc" valign="middle">
+<big><strong><span class="block">&nbsp;Net::ISP::Balance - Support load balancing across multiple internet service providers</span></strong></big>
+</td></tr>
+</table>
+
+</body>
+
+</html>
