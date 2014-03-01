@@ -336,15 +336,17 @@ sub forward {
 
     my @dev = map {$self->dev($_)} $self->isp_services;
 
-    for my $protocol (@protocols) {
-	$self->iptables("-t nat -A PREROUTING -p $protocol --dport $port -j DNAT --to-destination $host");
-	for my $lan ($self->lan_services) {
-	    my $landev = $self->dev($lan);
-	    my $lannet = $self->net($lan);
-	    my $lanip  = $self->ip($lan);
-	    my $syn    = $protocol eq 'tcp' ? '--syn' : '';
-	    $self->iptables("-A FORWARD -p $protocol -o $landev $syn -d $dhost --dport $dport -j ACCEPT");
-	    $self->iptables("-t nat -A POSTROUTING -p $protocol -d $dhost -o $landev --dport $dport -j SNAT --to $lanip");
+    for my $dev (@dev) {
+	for my $protocol (@protocols) {
+	    $self->iptables("-t nat -A PREROUTING -i $dev -p $protocol --dport $port -j DNAT --to-destination $host");
+	    for my $lan ($self->lan_services) {
+		my $landev = $self->dev($lan);
+		my $lannet = $self->net($lan);
+		my $lanip  = $self->ip($lan);
+		my $syn    = $protocol eq 'tcp' ? '--syn' : '';
+		$self->iptables("-A FORWARD -p $protocol -o $landev $syn -d $dhost --dport $dport -j ACCEPT");
+		$self->iptables("-t nat -A POSTROUTING -p $protocol -d $dhost -o $landev --dport $dport -j SNAT --to $lanip");
+	    }
 	}
     }
 }
