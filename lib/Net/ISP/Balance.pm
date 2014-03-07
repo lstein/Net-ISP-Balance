@@ -6,7 +6,7 @@ use IO::String;
 use Fcntl ':flock';
 use Carp 'croak','carp';
 
-our $VERSION    = '1.01';
+our $VERSION    = '1.02';
 
 =head1 NAME
 
