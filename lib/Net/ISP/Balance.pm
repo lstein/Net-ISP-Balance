@@ -3,6 +3,7 @@ package Net::ISP::Balance;
 use strict;
 use Net::Netmask;
 use IO::String;
+use Fcntl ':flock';
 use Carp 'croak','carp';
 
 our $VERSION    = '1.01';
@@ -52,6 +53,14 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
 =cut
 
 use Carp;
+
+=head1 USAGE
+
+This library supports load_balance.pl, a script to load-balance a home
+network across two or more Internet Service Providers (ISP). The
+load_balance.pl script can be found in the bin subdirectory of this
+distribution. Installation and configuraiton instructions can be found
+in the README.md file.
 
 =head1 FREQUENTLY-USED METHODS
 
@@ -424,6 +433,49 @@ sub lan_services {
     return grep {$self->role($_) eq 'lan'} @n;
 }
 
+=head2 $state = $bal->event($service => $new_state)
+
+Record a transition between "up" and "down" for a named service. The
+first argument is the name of the ISP service that has changed,
+e.g. "CABLE". The second argument is either "up" or "down".
+
+The method returns a hashref in which the keys are the ISP service names
+and the values are one of 'up' or 'down'.
+
+The persistent state information is stored in /var/lib/lsm/ under a
+series of files named <SERVICE_NAME>.state.
+
+=cut
+
+sub event {
+    my $self = shift;
+
+    if (@_) {
+	my ($svc,$new_state) = @_;
+	$new_state =~ /^(up|down)$/  or croak "state must be 'up' or  down'";
+	$self->dev($svc)             or croak "service '$svc' is unknown";
+	my $file = "/var/lib/lsm/${svc}.state";
+	open my $fh,'+<',$file or croak "Couldn't open $file: $!";
+	flock $fh,LOCK_EX;
+	seek($fh,0,0);
+	print $fh $new_state;
+	close $fh;
+    }
+
+    my %state;
+    for my $svc ($self->isp_services) {
+	my $file = "/var/lib/lsm/${svc}.state";
+	open my $fh,'<',$file or croak "Couldn't open $file: $!";
+	flock $fh,LOCK_SH;
+	my $state = <$fh>;
+	close $fh;
+	$state{$svc}=$state;
+    }
+    my @up = grep {$state{$_} eq 'up'} keys %state;
+    $self->up(@up);
+    return \%state;
+}
+
 =head2 @up = $bal->up(@up_services)
 
 Get or set the list of ISP interfaces that are currently active and
@@ -721,11 +773,12 @@ Possible switches and their defaults are:
 sub lsm_config_text {
     my $self = shift;
     my %args = @_;
-    my $scripts_dir = $self->lsm_scripts_dir;
+    my $scripts_dir    = $self->lsm_scripts_dir;
+    my $balance_script = $self->install_etc."/load_balance.pl";
     my %defaults = (
                       -checkip              => '127.0.0.1',
                       -debug                => 8,
-                      -eventscript          => "$scripts_dir/balancer_event_script",
+                      -eventscript          => $balance_script,
                       -notifyscript         => "$scripts_dir/default_script",
                       -max_packet_loss      => 15,
                       -max_successive_pkts_lost =>  7,

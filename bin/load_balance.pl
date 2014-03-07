@@ -2,14 +2,16 @@
 
 use strict;
 use Net::ISP::Balance;
+use Sys::Syslog;
 use Getopt::Long;
 
-my ($DEBUG,$VERBOSE);
+my ($DEBUG,$VERBOSE,$STATUS);
 my $result = GetOptions('debug' => \$DEBUG,
 			'verbose'=>\$VERBOSE,
+			'status' => \$STATUS,
     );
 $result or die <<END;
-Usage: $0 [-d] ISP1 ISP2 ISP3...
+Usage: $0 [-options] ISP1 ISP2 ISP3...
 
 This script will mark the Internet Service Providers (ISPs) listed on
 the command line as "up" and will then load balance your network
@@ -29,20 +31,50 @@ Options:
  --verbose, -v   Verbose output. Echo all route and iptables commands
                  to STDERR before executing them.
 
+ --status,-s     Print current status of each monitored ISP interface
+                 to STDOUT.
+
+If the script is invoked with a first argument of "up", "down",
+"long_down" or "long_down_to_up" followed by more than 3 arguments,
+then the script will decide that it has been called by the lsm link
+monitor as the result of a change in state in one or more of the
+monitored interfaces. It will then institute an appropriate routing
+change.
+
 END
 
 # command line arguments correspond to the ISP services (defined in the config file)
 # that are "up". LAN services are assumed to be always up.
 
 my $bal = Net::ISP::Balance->new();
-
-my @up = @ARGV ? @ARGV : $bal->isp_services;
-my %up_services = map {uc($_) => 1} @up;
-@up             = keys %up_services; # uniqueify
-
-$bal->up(@up);
 $bal->echo_only($DEBUG);
 $bal->verbose($VERBOSE);
+
+if ($STATUS) {
+    my $state = $bal->event();
+    for my $svc (sort $bal->isp_services) {
+	printf("%-15s %8s\n",$svc,$state->{$svc}||'unknown');
+    }
+    exit 0;
+}
+
+my %LSM_STATE = (up              => 'up',
+		 down            => 'up',
+		 long_down       => 'down',
+		 long_down_to_up => 'up');
+
+if ($LSM_STATE{$ARGV[0]} && @ARGV >= 5) {
+    my ($state,$name,$checkip,$device,$email) = @ARGV;
+    openlog('lsm-event','ndelay,pid','local0');
+    syslog('warning',"$name ($device) is now $state. Fixing routing tables");
+    $bal->event($name => $LSM_STATE{$state});
+    closelog();
+} else {
+    my @up = @ARGV ? @ARGV : $bal->isp_services;
+    my %up_services = map {uc($_) => 1} @up;
+    @up             = keys %up_services; # uniqueify
+    $bal->up(@up);
+}
 
 # start lsm process if it is not running
 start_lsm_if_needed($bal) unless @ARGV || $DEBUG;
