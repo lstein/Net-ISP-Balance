@@ -219,6 +219,10 @@ object to emit firewall and routing rules.
 
 sub set_routes_and_firewall {
     my $self = shift;
+    unless ($self->isp_services) {
+	warn "No ISP services seem to be up. Not altering routing tables or firewall.\n";
+	return;
+    }
     $self->enable_forwarding(0);
     $self->set_routes();
     $self->set_firewall();

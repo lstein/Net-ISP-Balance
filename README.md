@@ -32,12 +32,20 @@ The scripts run on the Linux-based router/firewall machine. In order
 to install, you must have the ability to run a shell on the router,
 and compile and install software.
 
-LIMITATIONS: To date (21 February 2014) these scripts have only been
+LIMITATIONS: 
+
+1. To date (21 February 2014) these scripts have only been
 tested on Ubuntu/Debian systems that configure their network
 interfaces via a /etc/network/interfaces file, and RedHat/CentOS
 systems that configure their interfaces via
 /etc/sysconfig/network-scripts. Please feel free to contribute support
 for other distributions.
+
+2. The interfaces managed by this script <b>must</b> be manually
+configured via /etc/network/interfaces or
+/etc/sysconfig/network-scripts. Interfaces that are configured via the
+NetworkManager (or similar dynamic configuration daemons) are not
+supported.
 
 Installation
 ============

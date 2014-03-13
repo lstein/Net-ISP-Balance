@@ -5,10 +5,11 @@ use Net::ISP::Balance;
 use Sys::Syslog;
 use Getopt::Long;
 
-my ($DEBUG,$VERBOSE,$STATUS);
+my ($DEBUG,$VERBOSE,$STATUS,$KILL);
 my $result = GetOptions('debug' => \$DEBUG,
 			'verbose'=>\$VERBOSE,
 			'status' => \$STATUS,
+			'kill'   => \$KILL,
     );
 $result or die <<END;
 Usage: $0 [-options] ISP1 ISP2 ISP3...
@@ -34,6 +35,8 @@ Options:
  --status,-s     Print current status of each monitored ISP interface
                  to STDOUT.
 
+ --kill,-k       Kill any running lsm process.
+
 If the script is invoked with a first argument of "up", "down",
 "long_down" or "long_down_to_up" followed by more than 3 arguments,
 then the script will decide that it has been called by the lsm link
@@ -50,11 +53,13 @@ my $bal = Net::ISP::Balance->new();
 $bal->echo_only($DEBUG);
 $bal->verbose($VERBOSE);
 
-if ($STATUS) {
-    my $state = $bal->event();
-    for my $svc (sort $bal->isp_services) {
-	printf("%-15s %8s\n",$svc,$state->{$svc}||'unknown');
-    }
+# these two subroutines exit
+do_status()   if $STATUS;
+do_kill_lsm() if $KILL;
+
+openlog('load_balance.pl','ndelay,pid','local0');
+unless ($bal->isp_services) {
+    syslog('crit',"No ISP services appear to be configured. Make sure that balance.conf is correctly set up and that the ISP and LAN-connected interfaces are configured via system configuration files rather than NetworkManager (or similar)");
     exit 0;
 }
 
@@ -65,11 +70,13 @@ my %LSM_STATE = (up              => 'up',
 
 if ($LSM_STATE{$ARGV[0]} && @ARGV >= 5) {
     my ($state,$name,$checkip,$device,$email) = @ARGV;
-    openlog('lsm-event','ndelay,pid','local0');
     syslog('warning',"$name ($device) is now $state. Fixing routing tables");
     $bal->event($name => $LSM_STATE{$state});
-    closelog();
-} else {
+    my @up = $bal->up;
+    syslog('info',"ISP services currently marked up: @up");    
+}
+
+else {
     my @up = @ARGV ? @ARGV : $bal->isp_services;
     my %up_services = map {uc($_) => 1} @up;
     @up             = keys %up_services; # uniqueify
@@ -81,6 +88,25 @@ start_lsm_if_needed($bal) unless @ARGV || $DEBUG;
 
 $bal->set_routes_and_firewall();
 exit 0;
+
+sub do_status {
+    my $state = $bal->event();
+    for my $svc (sort $bal->isp_services) {
+	printf("%-15s %8s\n",$svc,$state->{$svc}||'unknown');
+    }
+    exit 0;
+}
+
+sub do_kill_lsm {
+    my $lsm_running = -e '/var/run/lsm.pid' && kill(0=>`cat /var/run/lsm.pid`);
+    if ($lsm_running) {
+	kill(TERM => `cat /var/run/lsm.pid`);
+	print STDERR "lsm process killed\n";
+    } else {
+	print STDERR "lsm does not seem to be running\n";
+    }
+    exit 0;
+}
 
 sub start_lsm_if_needed {
     my $bal = shift;

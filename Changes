@@ -1,4 +1,8 @@
-1.01	Update lsm config file when network configuration changes.
-	Use log-level 4 for all iptables logging events.        
+1.02    -lsm now calls load_balance.pl directly as an eventscript, rather than indirectly.
+	-Cleaned up documentation.
+	-Add --kill and --status arguments to load_balance.pl
 
-1.00	Initial release
+1.01	-Update lsm config file when network configuration changes.
+	-Use log-level 4 for all iptables logging events.        
+
+1.00	-Initial release
