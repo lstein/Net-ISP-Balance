@@ -459,8 +459,10 @@ sub event {
 	$new_state =~ /^(up|down)$/  or croak "state must be 'up' or  down'";
 	$self->dev($svc)             or croak "service '$svc' is unknown";
 	my $file = "/var/lib/lsm/${svc}.state";
-	open my $fh,'+<',$file or croak "Couldn't open $file: $!";
+	my $mode = -e $file ? '+<' : '>';
+	open my $fh,$mode,$file or croak "Couldn't open $file: $!";
 	flock $fh,LOCK_EX;
+	truncate $fh,0;
 	seek($fh,0,0);
 	print $fh $new_state;
 	close $fh;
@@ -687,7 +689,7 @@ Ubuntu/Debian-derived systems, this will be the directory
 
 sub default_lsm_scripts_dir {
     my $self = shift;
-    return $self->install_etc.'/lsm/';
+    return $self->install_etc.'/lsm';
 }
 
 =head2 $file = $bal->bal_conf_file([$new_file])

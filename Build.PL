@@ -78,7 +78,7 @@ my $install_etc = Net::ISP::Balance->install_etc;
 $build->add_build_element('etc');
 $build->add_build_element('lsm');
 $build->install_path('etc'       => $install_etc);
-$build->install_path('bin'       => '/usr/local/bin');
+$build->install_path('bin'       => '/usr/bin');
 $build->install_path('script'    => $install_etc);
 $build->create_build_script;
 exit 0;

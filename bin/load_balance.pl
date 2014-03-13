@@ -64,7 +64,7 @@ unless ($bal->isp_services) {
 }
 
 my %LSM_STATE = (up              => 'up',
-		 down            => 'up',
+		 down            => 'down',
 		 long_down       => 'down',
 		 long_down_to_up => 'up');
 
@@ -72,16 +72,19 @@ if ($LSM_STATE{$ARGV[0]} && @ARGV >= 5) {
     my ($state,$name,$checkip,$device,$email) = @ARGV;
     syslog('warning',"$name ($device) is now $state. Fixing routing tables");
     $bal->event($name => $LSM_STATE{$state});
-    my @up = $bal->up;
-    syslog('info',"ISP services currently marked up: @up");    
 }
 
 else {
     my @up = @ARGV ? @ARGV : $bal->isp_services;
     my %up_services = map {uc($_) => 1} @up;
     @up             = keys %up_services; # uniqueify
-    $bal->up(@up);
+    my @down        = grep {!$up_services{$_}} $bal->isp_services;
+    $bal->event($_ => 'up')   foreach @up;
+    $bal->event($_ => 'down') foreach @down;
 }
+
+my @up = $bal->up;
+syslog('info',"ISP services currently marked up: @up");    
 
 # start lsm process if it is not running
 start_lsm_if_needed($bal) unless @ARGV || $DEBUG;
@@ -94,6 +97,8 @@ sub do_status {
     for my $svc (sort $bal->isp_services) {
 	printf("%-15s %8s\n",$svc,$state->{$svc}||'unknown');
     }
+    kill(USR1 => `cat /var/run/lsm.pid`);
+    print STDERR "See syslog for detailed link monitoring information from lsm.\n";
     exit 0;
 }
 
@@ -134,6 +139,6 @@ sub start_lsm_if_needed {
     close $fh or die "$lsm_conf: $!";
 
     # now start the process
-    $ENV{PATH} .= ":/usr/local/bin" unless $ENV{PATH} =~ m!/usr/local/bin!;
-    system "lsm $lsm_conf /var/run/lsm.pid";
+    syslog('info',"Starting lsm with command: /usr/bin/lsm $lsm_conf /var/run/lsm.pid");    
+    system "/usr/bin/lsm $lsm_conf /var/run/lsm.pid";
 }
