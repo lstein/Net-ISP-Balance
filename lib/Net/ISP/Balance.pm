@@ -354,7 +354,7 @@ sub forward {
 		my $lanip  = $self->ip($lan);
 		my $syn    = $protocol eq 'tcp' ? '--syn' : '';
 		$self->iptables("-A FORWARD -p $protocol -o $landev $syn -d $dhost --dport $dport -j ACCEPT");
-		$self->iptables("-t nat -A POSTROUTING -p $protocol -d $dhost -o $landev --dport $dport -j SNAT --to $lanip");
+#		$self->iptables("-t nat -A POSTROUTING -p $protocol -d $dhost -o $landev --dport $dport -j SNAT --to $lanip");
 	    }
 	}
     }
