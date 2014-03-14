@@ -97,8 +97,10 @@ sub do_status {
     for my $svc (sort $bal->isp_services) {
 	printf("%-15s %8s\n",$svc,$state->{$svc}||'unknown');
     }
-    kill(USR1 => `cat /var/run/lsm.pid`);
-    print STDERR "See syslog for detailed link monitoring information from lsm.\n";
+    if ($< == 0)  { # running as root
+	kill(USR1 => `cat /var/run/lsm.pid`);
+	print STDERR "See syslog for detailed link monitoring information from lsm.\n";
+    }
     exit 0;
 }
 
@@ -119,7 +121,8 @@ sub start_lsm_if_needed {
     my $lsm_conf = $bal->lsm_conf_file;
     my $bal_conf = $bal->bal_conf_file;
 
-    my $lsm_running = -e '/var/run/lsm.pid' && kill(0=>`cat /var/run/lsm.pid`);
+    my $lsm_running = $bal->signal_lsm(0);
+    
     if ($lsm_running) {  # check whether the configuration file needs changing
 
 	open my $fh,'<',$lsm_conf or return;
@@ -130,7 +133,7 @@ sub start_lsm_if_needed {
 	my $new_text = $bal->lsm_config_text();
 	return if $new_text eq $old_text;
 
-	kill TERM=>`cat /var/run/lsm.pid`;  # kill lsm and restart
+	$bal->signal_lsm('TERM');
     }
 
     # Create config file
@@ -139,6 +142,6 @@ sub start_lsm_if_needed {
     close $fh or die "$lsm_conf: $!";
 
     # now start the process
-    syslog('info',"Starting lsm with command: /usr/bin/lsm $lsm_conf /var/run/lsm.pid");    
-    system "/usr/bin/lsm $lsm_conf /var/run/lsm.pid";
+    syslog('info',"Starting lsm link monitoring daemon");    
+    $bal->start_lsm();
 }

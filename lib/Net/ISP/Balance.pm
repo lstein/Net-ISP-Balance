@@ -1485,6 +1485,38 @@ sub nat_fw_rules {
 	foreach $self->isp_services;
 }
 
+=head2 $bal->start_lsm()
+
+Start an lsm process.
+
+=cut
+
+sub start_lsm {
+    my $self = shift;
+    my $lsm_conf = $self->lsm_conf_file;
+    system "/usr/bin/lsm $lsm_conf /var/run/lsm.pid";
+}
+
+=head2 $bal->signal_lsm($signal)
+
+Send a signal to a running LSM and return true if successfully
+signalled. The signal can be numeric (e.g. 9) or a string ('TERM').
+
+=cut
+
+sub signal_lsm {
+    my $self = shift;
+    my $signal = shift;
+    $signal   ||= 0;
+    my $pid;
+    open my $f,'/var/run/lsm.pid' or return;
+    chomp($pid = <$f>);
+    close $f;
+    return unless $pid =~ /^\d+$/;
+    return kill($signal=>$pid);
+}
+
+
 1;
 
 =head1 BUGS
