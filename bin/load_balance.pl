@@ -1,5 +1,186 @@
 #!/usr/bin/perl
 
+=head1 NAME
+
+load_balance.pl Load balance a host or network across two or more Internet connections.
+
+=head1 SYNOPSIS
+
+ # get status report
+ % sudo load_balance.pl -s
+
+ # start link monitoring and load balance across all up ISPs
+ % sudo load_balance.pl
+
+ # load balance across "CABLE" and "DSL" only
+ % sudo load_balance.pl CABLE DSL
+
+ # print out the routing and firewall commands that would
+ # ordinarily be executed
+ % load_balance.pl -d
+
+=head1 DESCRIPTION
+
+This script can be run on a Linux-based home router or standalone
+computer to load balance your network connection among two or more
+Internet Service Providers (ISPs). When aggregated across multiple
+simultaneous connections, you will achieve the sum of the bandwidth of
+all ISP connections. In addition, the script will continuously ping
+each outgoing interface and adjust routing in the event that one or
+more ISPs become unavailable. This provides failover.
+
+The script can be called with no arguments, in which case it will mark
+all known ISPs as being up and launch the "lsm" link monitor to test
+each one periodically for connectivity. It can also be called with one
+or more symbolic names for ISP connections, as defined in
+load_balance.conf. These will be forced "up" and other ISP connections
+will be forced "down".
+
+Other command-line options allow you to view the status of your ISP
+connections, kill a running lsm, and more.
+
+Generally this script must be run as root, since it alters the routing
+table and firewall rules.
+
+For full installation and configuration instructions, please see
+L<http://lstein.github.io/Net-ISP-Balance/>.
+
+=head1 COMMAND-LINE OPTIONS
+
+Each command-line option can be abbreviated or used in long-form.
+
+ --debug, -d     Turn on debugging. In this mode, no firewall or
+                 routing commands will be executed, but instead
+                 will be printed to standard output for inspection.
+
+ --verbose, -v   Verbose output. Echo all route and iptables commands
+                 to STDERR before executing them.
+
+ --status,-s     Print current status of each monitored ISP interface
+                 to STDOUT.
+
+ --kill,-k       Kill any running lsm process.
+
+=head1 COMMON USAGE
+
+Here are common usage patterns:
+
+=over 4
+
+=item Mark all ISPs as up and start link monitoring:
+
+ % sudo load_balance.pl
+
+=item Mark just the listed ISP(s) as up. Do not start link monitoring:
+
+ % sudo load_balance.pl CABLE
+
+=item Bring up the listed ISP service, leaving the other(s) in their current
+state. This is usually done behind the scenes by lsm.
+
+ % sudo load_balance.pl up CABLE
+
+=item Bring down the listed ISP service, leaving the other(s) in the
+current state. This is usually done behind the scenes by lsm:
+
+ % sudo load_balance.pl down CABLE
+
+=item Print current status of the defined ISPs:
+
+ % sudo load_balance.pl -s
+
+=item Kill lsm and discontinue the link monitoring:
+
+ % sudo load_balance.pl -k
+
+=item Print to standard output all the routing and firewall commands
+that would ordinarily be issued on startup. Do not launch lsm or
+actually change anything:
+
+ % load_balance.pl -d
+
+=back
+
+=head1 FILES
+
+This section gives locations of important files.
+
+=head2 Debian/Ubuntu/Mint systems
+
+ /etc/network/balance.conf        # Main configuration file
+ /etc/network/balance/firewall/   # Additional firewall rules
+ /etc/network/balance/routes/     # Additional routing rules
+
+=head2 RedHat/CentOS systems
+
+ /etc/sysconfig/network-scripts/balance.conf        # Main configuration file
+ /etc/sysconfig/network-scripts/balance/firewall/   # Additional firewall rules
+ /etc/sysconfig/network-scripts/balance/routes/     # Additional routing rules
+
+=head2 Format of the balance.conf:
+
+balance.conf is the main configuration file. It defines the interfaces
+connected to the ISPs and to the LAN (if running on a router). Here is
+a typical example:
+
+ #service    device   role     ping-ip
+ CABLE       eth0     isp      173.194.43.95
+ DSL         eth1     isp      173.194.43.95
+ LAN         eth2     lan      
+
+ # name=value pairs define lsm configuration variables
+ warn_email=fred@gmail.com
+ max_packet_loss=10
+ min_packet_loss=5
+
+There are two parts of the configuration file. The first part, which
+is required, is a four-column table that defines interfaces to be
+monitored.
+
+The first column is a service name that is used to bring up or down
+the needed routes and firewall rules.
+
+The second column is the name of the network interface device that
+connects to that service.
+
+The third column is either "isp" or "lan". There may be any number of
+these. The script will firewall traffic passing through any of the
+ISPs, and will load balance traffic among them. Traffic can flow
+freely among any of the interfaces marked as belonging to a LAN. If
+this is the only host that is connected to the internet, then choose
+the loopback interface, "lo".
+
+The fourth and last column is the IP address of a host that can be
+periodically pinged to test the integrity of each ISP connection. If
+too many pings failed, the service will be brought down and all
+traffic routed through the remaining ISP(s). The service will continue
+to be monitored and will be brought up when it is once again
+working. Choose a host that is not likely to go offline for reasons
+unrelated to your network connectivity, such as google.com, or the
+ISP's web site.
+
+The second (optional) part of the configuration file is a series of
+name=value pairs that allow you to customize the behavior of lsm, such
+as where to send email messages when a link's status changes. Please
+see L<http://lsm.foobar.fi/> for the comprehensive list.
+
+=head1 SEE ALSO
+
+L<Net::ISP::Balance>
+
+=head1 AUTHOR
+
+Lincoln Stein, lincoln.stein@gmail.com
+
+Copyright (c) 2014 Lincoln D. Stein
+                                                                                
+This package and its accompanying libraries is free software; you can
+redistribute it and/or modify it under the terms of the GPL (either
+version 1, or at your option, any later version) or the Artistic
+License 2.0.
+
+=cut
+
 use strict;
 use Net::ISP::Balance;
 use Sys::Syslog;
@@ -63,13 +244,15 @@ unless ($bal->isp_services) {
     exit 0;
 }
 
+my %SERVICES = map {$_=>1} $bal->isp_services;
+
 my %LSM_STATE = (up              => 'up',
 		 down            => 'down',
 		 long_down       => 'down',
 		 long_down_to_up => 'up');
 
-if ($LSM_STATE{$ARGV[0]} && @ARGV >= 5) {
-    my ($state,$name,$checkip,$device,$email) = @ARGV;
+if ((my $state = $LSM_STATE{$ARGV[0]}) && ($SERVICES{my $name = $ARGV[1]})) {
+    my $device = $ARGV[3] || $bal->dev($name);
     syslog('warning',"$name ($device) is now $state. Fixing routing tables");
     $bal->event($name => $LSM_STATE{$state});
 }

@@ -27,7 +27,11 @@ sub ACTION_install {
     my $dir  = $self->base_dir();
     $self->SUPER::ACTION_install();
     mkdir '/var/lib/lsm';
-    }
+    my $path = $self->install_destination('script');
+    my $install_etc = Net::ISP::Balance->install_etc;
+    unlink("$install_etc/load_balance.pl");
+    symlink("$path/load_balance.pl"=>"$install_etc/load_balance.pl");
+}
 
 sub process_lsm_files {
      my $self = shift;
@@ -62,7 +66,7 @@ sub process_etc_files {
 EOF
 
 my $build = $class->new(
-    module_name       => 'Net-ISP-Balance',
+    module_name       => 'Net::ISP::Balance',
     license           => 'perl',
     dist_version_from => 'lib/Net/ISP/Balance.pm',
     dist_abstract     => 'Load balance among two or more ISP connections',
@@ -78,7 +82,6 @@ my $install_etc = Net::ISP::Balance->install_etc;
 $build->add_build_element('etc');
 $build->add_build_element('lsm');
 $build->install_path('etc'       => $install_etc);
-$build->install_path('bin'       => '/usr/bin');
-$build->install_path('script'    => $install_etc);
+$build->config_data('lsm_path'=>$build->install_destination('script').'/lsm');
 $build->create_build_script;
 exit 0;

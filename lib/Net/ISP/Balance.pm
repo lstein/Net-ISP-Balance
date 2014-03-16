@@ -6,6 +6,8 @@ use IO::String;
 use Fcntl ':flock';
 use Carp 'croak','carp';
 
+eval 'use Net::ISP::Balance::ConfigData';
+
 our $VERSION    = '1.02';
 
 =head1 NAME
@@ -59,8 +61,8 @@ use Carp;
 This library supports load_balance.pl, a script to load-balance a home
 network across two or more Internet Service Providers (ISP). The
 load_balance.pl script can be found in the bin subdirectory of this
-distribution. Installation and configuraiton instructions can be found
-in the README.md file.
+distribution. Installation and configuration instructions can be found
+at http://lstein.github.io/Net-ISP-Balance/
 
 =head1 FREQUENTLY-USED METHODS
 
@@ -675,7 +677,7 @@ On Ubuntu/Debian-derived systems, this will be the file
 
 sub default_lsm_conf_file {
     my $self = shift;
-    return $self->install_etc."/lsm.conf";
+    return $self->install_etc."/balance/lsm.conf";
 }
 
 =head2 $dir = Net::ISP::Balance->default_lsm_scripts_dir
@@ -844,6 +846,8 @@ sub _parse_configuration_file {
 	}
 	my ($service,$device,$role,$ping_dest) = split /\s+/;
 	next unless $service && $device && $role;
+	croak "load_balance.conf line $.: A service can not be named 'up' or 'down'"
+	    if $service=~/^(up|down)$/;
 	$services{$service}{dev}=$device;
 	$services{$service}{role}=$role;
 	$services{$service}{ping}=$ping_dest;
@@ -1493,8 +1497,9 @@ Start an lsm process.
 
 sub start_lsm {
     my $self = shift;
+    my $lsm      = Net::ISP::Balance::ConfigData->config('lsm_path');
     my $lsm_conf = $self->lsm_conf_file;
-    system "/usr/bin/lsm $lsm_conf /var/run/lsm.pid";
+    system "$lsm $lsm_conf /var/run/lsm.pid";
 }
 
 =head2 $bal->signal_lsm($signal)

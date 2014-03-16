@@ -42,9 +42,9 @@ Makefile.depend: *.c *.h Makefile
 	$(CC) -MM *.c > $@
 
 install: lsm
-	mkdir -p ../blib/etc/lsm
+	mkdir -p ../blib/etc/balance/lsm
 	mkdir -p ../blib/bin
 	install -m u=rwx,go=x     lsm ../blib/bin/
-	install -m u=rwx,go=r default_script balancer_event_script ../blib/etc/lsm/
+	install -m u=rwx,go=r default_script balancer_event_script ../blib/etc/balance/lsm/
 
 -include Makefile.depend
