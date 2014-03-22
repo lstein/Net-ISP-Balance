@@ -31,6 +31,11 @@ sub ACTION_install {
     my $install_etc = Net::ISP::Balance->install_etc;
     unlink("$install_etc/load_balance.pl");
     symlink("$path/load_balance.pl"=>"$install_etc/load_balance.pl");
+    # fix permissions of balance.conf, to encourage root to edit
+    chmod 0644,"$install_etc/balance.conf";
+    # and rules files
+    system "chmod u+w $install_etc/balance/firewall/*";
+    system "chmod u+w $install_etc/balance/routes/*";
 }
 
 sub process_lsm_files {
@@ -75,6 +80,7 @@ my $build = $class->new(
     requires          => {
       'Net::Netmask'  => 0,
       'IO::String'    => 0,
+      'Pod::Usage'    => 0,
     },
     );
 

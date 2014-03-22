@@ -1,0 +1,4 @@
+# allow incoming domain packets -- needed for DNS resolution
+iptables -A INPUT   -p udp --source-port domain -j ACCEPT
+# allow incoming NTP packets -- needed for net time protocol
+iptables -A INPUT   -p udp --source-port ntp -j ACCEPT

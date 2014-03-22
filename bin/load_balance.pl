@@ -61,9 +61,12 @@ Each command-line option can be abbreviated or used in long-form.
 
  --kill,-k       Kill any running lsm process.
 
+ --help,-h       Print this message.
+
 =head1 COMMON USAGE
 
-Here are common usage patterns:
+This section describes common usage patterns. Note that
+load_balance.pl must always be run as root.
 
 =over 4
 
@@ -97,7 +100,7 @@ current state. This is usually done behind the scenes by lsm:
 that would ordinarily be issued on startup. Do not launch lsm or
 actually change anything:
 
- % load_balance.pl -d
+ % sudo load_balance.pl -d
 
 =back
 
@@ -144,11 +147,9 @@ The second column is the name of the network interface device that
 connects to that service.
 
 The third column is either "isp" or "lan". There may be any number of
-these. The script will firewall traffic passing through any of the
-ISPs, and will load balance traffic among them. Traffic can flow
-freely among any of the interfaces marked as belonging to a LAN. If
-this is the only host that is connected to the internet, then choose
-the loopback interface, "lo".
+these. The script will load balance traffic across all ISPs, and will
+act as a firewall between the LAN (if any) and the Internet. You do
+not need to have a "lan" entry if this is a standalone host.
 
 The fourth and last column is the IP address of a host that can be
 periodically pinged to test the integrity of each ISP connection. If
@@ -185,47 +186,21 @@ use strict;
 use Net::ISP::Balance;
 use Sys::Syslog;
 use Getopt::Long;
+use Pod::Usage 'pod2usage';
 
-my ($DEBUG,$VERBOSE,$STATUS,$KILL);
+my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP);
 my $result = GetOptions('debug' => \$DEBUG,
 			'verbose'=>\$VERBOSE,
 			'status' => \$STATUS,
 			'kill'   => \$KILL,
+			'help'   => \$HELP,
     );
-$result or die <<END;
-Usage: $0 [-options] ISP1 ISP2 ISP3...
-
-This script will mark the Internet Service Providers (ISPs) listed on
-the command line as "up" and will then load balance your network
-connections among them. The ISPs are defined in the configuration file
-/etc/network/balance.conf.
-
-If called without any ISP arguments, the script will mark all known
-ISPs as being up and launch the "lsm" link monitor to test each one
-periodically for connectivity.
-
-Options:
-
- --debug, -d     Turn on debugging. In this mode, no firewall or
-                 routing commands will be executed, but instead
-                 will be printed to standard output for inspection.
-
- --verbose, -v   Verbose output. Echo all route and iptables commands
-                 to STDERR before executing them.
-
- --status,-s     Print current status of each monitored ISP interface
-                 to STDOUT.
-
- --kill,-k       Kill any running lsm process.
-
-If the script is invoked with a first argument of "up", "down",
-"long_down" or "long_down_to_up" followed by more than 3 arguments,
-then the script will decide that it has been called by the lsm link
-monitor as the result of a change in state in one or more of the
-monitored interfaces. It will then institute an appropriate routing
-change.
-
-END
+if (!$result || $HELP) {
+    pod2usage(-message => "Usage: $0",
+	      -exitval => -1,
+	      -verbose => 2);
+    exit 0;
+}
 
 # command line arguments correspond to the ISP services (defined in the config file)
 # that are "up". LAN services are assumed to be always up.

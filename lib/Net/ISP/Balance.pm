@@ -133,9 +133,8 @@ load balancing script.Contained in this directory are subdirectories named "rout
 define additional routing rules. The latter contains files or perl
 scripts that define additional firewall rules.
 
-Any files you put into these directories will be read in alphabetic
-order and added to the routes and/or firewall rules emitted by the
-load balancing script.
+Note that files ending in ~ or starting with # are treated as autosave files 
+and ignored.
 
 A typical routing rules file will look like the example shown
 below.
@@ -1258,7 +1257,10 @@ sub _execute_rules_files {
     my @files = @_;
 
     for my $f (@files) {
+	next if $f =~ /~$/;   # ignore emacs backup files
+	next if $f =~ /^#/;   # ignore autosave files
 	print STDERR "# executing contents of $f\n" if $self->verbose;
+	$self->sh("## Including rules from $f ##\n");
 	next if $f =~ /(~|\.bak)$/ or $f=~/^#/;
 
 	if ($f =~ /\.pl$/) {  # perl script
@@ -1270,6 +1272,7 @@ sub _execute_rules_files {
 	    $self->sh($_) while <$fh>;
 	    close $fh;
 	}
+	$self->sh("## Finished $f ##\n");
     }
 }
 
@@ -1446,13 +1449,14 @@ sub sanity_fw_rules {
 	# any outgoing udp packet is fine with me
 	$self->iptables("-A OUTPUT  -p udp -s $net -j ACCEPT");
 
-	# allow domain and time services
-	$self->iptables(['-A INPUT   -p udp --source-port domain -j ACCEPT',
-			 "-A FORWARD -p udp --source-port domain -d $net -j ACCEPT"]);
-
-	# time
-	$self->iptables(['-A INPUT   -p udp --source-port ntp -j ACCEPT',
-			 "-A FORWARD -p udp --source-port ntp -d $net -j ACCEPT"]);
+# These lines are now contained in 02.forwardings.pl
+#	# allow domain and time services
+#	$self->iptables(['-A INPUT   -p udp --source-port domain -j ACCEPT',
+#			 "-A FORWARD -p udp --source-port domain -d $net -j ACCEPT"]);
+#
+#	# time
+#	$self->iptables(['-A INPUT   -p udp --source-port ntp -j ACCEPT',
+#			 "-A FORWARD -p udp --source-port ntp -d $net -j ACCEPT"]);
 
 	# lan/wan forwarding
 	# allow lan/wan forwarding
@@ -1485,6 +1489,7 @@ This is called by set_firewall() to set up basic NAT rules for lan traffic over 
 
 sub nat_fw_rules {
     my $self = shift;
+    return unless $self->lan_services;
     $self->iptables('-t nat -A POSTROUTING -o',$self->dev($_),'-j MASQUERADE')
 	foreach $self->isp_services;
 }
