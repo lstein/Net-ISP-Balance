@@ -289,7 +289,7 @@ load balancing script.</p>
 below.</p>
 
 <pre>
- # filename: /net/network/balance/routes/01.local_routes
+ # filename: /net/network/balance/routes/01.local_routes.conf
  ip route add 192.168.100.1  dev eth0 src 198.162.1.14
  ip route add 192.168.1.0/24 dev eth2 src 10.0.0.4
 </pre>
@@ -301,7 +301,7 @@ scripting constructs are not allowed here.</p>
 <p>A typical firewall rules file will look like the example shown here:</p>
 
 <pre>
- # filename: /net/network/balance/firewall/02.accept
+ # filename: /net/network/balance/firewall/02.accept.conf
  # accept incoming telnet connections to the router
  iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT
 
