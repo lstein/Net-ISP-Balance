@@ -215,8 +215,9 @@ do_kill_lsm() if $KILL;
 
 openlog('load_balance.pl','ndelay,pid','local0');
 unless ($bal->isp_services) {
-    syslog('crit',"No ISP services appear to be configured. Make sure that balance.conf is correctly set up and that the ISP and LAN-connected interfaces are configured via system configuration files rather than NetworkManager (or similar)");
-    exit 0;
+    my $msg = "No ISP services appear to be configured. Make sure that balance.conf is correctly set up and that the ISP and LAN-connected interfaces are configured and operational";
+    syslog('crit',$msg);
+    die $msg,"\n";
 }
 
 my %SERVICES = map {$_=>1} $bal->isp_services;

@@ -461,7 +461,7 @@ sub event {
 	$self->dev($svc)             or croak "service '$svc' is unknown";
 	my $file = "/var/lib/lsm/${svc}.state";
 	my $mode = -e $file ? '+<' : '>';
-	open my $fh,$mode,$file or croak "Couldn't open $file: $!";
+	open my $fh,$mode,$file or croak "Couldn't open $file mode $mode: $!";
 	flock $fh,LOCK_EX;
 	truncate $fh,0;
 	seek($fh,0,0);
@@ -472,11 +472,14 @@ sub event {
     my %state;
     for my $svc ($self->isp_services) {
 	my $file = "/var/lib/lsm/${svc}.state";
-	open my $fh,'<',$file or croak "Couldn't open $file: $!";
-	flock $fh,LOCK_SH;
-	my $state = <$fh>;
-	close $fh;
-	$state{$svc}=$state;
+	if (open my $fh,'<',$file) {
+	    flock $fh,LOCK_SH;
+	    my $state = <$fh>;
+	    close $fh;
+	    $state{$svc}=$state;
+	} else {
+	    $state{$svc}='unknown';
+	}
     }
     my @up = grep {$state{$_} eq 'up'} keys %state;
     $self->up(@up);
