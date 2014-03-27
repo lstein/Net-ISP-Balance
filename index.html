@@ -1,63 +1,42 @@
 <!DOCTYPE html>
 <html>
+
   <head>
-    <meta charset='utf-8'>
-    <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <link href='https://fonts.googleapis.com/css?family=Architects+Daughter' rel='stylesheet' type='text/css'>
-    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
-    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
-    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+    <meta charset='utf-8' />
+    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
+    <meta name="description" content="Net-isp-balance : Set of scripts to load-balance your Internet connection across two or more ISPs with auto failover" />
 
-    <!--[if lt IE 9]>
-    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-    <![endif]-->
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
 
-    <title>Net-isp-balance by lstein</title>
+    <title>Net-isp-balance</title>
   </head>
 
   <body>
-    <header>
-      <div class="inner">
-        <h1>Net-isp-balance</h1>
-        <h2>Scripts to load-balance your Internet connection across two or more ISPs with auto failover</h2>
-        <a href="https://github.com/lstein/Net-ISP-Balance" class="button"><small>View project on</small>GitHub</a>
-      </div>
-    </header>
 
-    <div id="content-wrapper">
-      <div class="inner clearfix">
-        <section id="main-content">
-          <p>This is a script that enables you to load-balance a home or
-small business Internet connection across two or more ISPs. You gain
-additional bandwidth and reliability; if one ISP fails, the other(s)
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/lstein/Net-ISP-Balance">View on GitHub</a>
+
+          <h1 id="project_title">Net-isp-balance</h1>
+          <h2 id="project_tagline">Set of scripts to load-balance your Internet connection across two or more ISPs with auto failover</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/lstein/Net-ISP-Balance/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/lstein/Net-ISP-Balance/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <p>This package allows you to load-balance a home or
+small business Internet connection across two or more ISPs. You may use it with a single host attached to two ISPs, or on a router/firewall machine to load balance your entire LAN. This gives you
+additional bandwidth and reliability. Network traffic is balanced across both ISP connections to increase upload and download capacity, and if one ISP fails, the other ISP(s)
 will take over automatically.</p>
 
-<p>These scripts are designed to run on top of a Linux system, and have
-not been tested on Windows or Mac OSX. A typically network topology
-looks like this:</p>
-
-<pre>
-
-
-                                   Cable modem ------&gt; ISP1
-                                       ^
-  home machine 1 ------&gt;|              |
-                        |              |
-  home machine 2 ------&gt;|-------&gt;router/firewall
-                        |              |
-  home machine 3 ------&gt;|              |
-                                       v
-                                   DSL modem   ------&gt; ISP2
-
-
-   Local Area Network(LAN)             |     Wide Area Network (WAN)
-      
-</pre>
-
-<p>The scripts run on the Linux-based router/firewall machine. In order
-to install, you must have the ability to run a shell on the router,
-and compile and install software.</p>
+<p>These package runs on Linux systems, and will not work on Windows or Mac OSX systems.</p>
 
 <p>LIMITATIONS: To date (21 February 2014) these scripts have only been
 tested on Ubuntu/Debian systems that configure their network
@@ -109,19 +88,32 @@ balance.conf. If you are on a Ubuntu/Debian system, this file will be
 located at /etc/network/balance.conf. If you are on a RedHat/CentOS
 system, you'll find it in /etc/sysconfig/network-scripts/balance.conf.
 
-<p>Then edit it to meet your needs. The core of the file looks like this:</p>
-
-<p><i>/etc/network/balance.conf /etc/sysconfig/network-scripts/balance.conf</i></p>
+<p>You'll need to edit this file to match your network topology. Here is a typical home router setup:</p>
 
 <pre>
- #service    device   role     ping-ip
- CABLE      eth0     isp      173.194.43.95
- DSL        eth1     isp      173.194.43.95
- LAN        eth2     lan      
+                                   Cable modem ------&gt; ISP1 --------+
+                                       ^                             \
+  home machine 1 ------&gt;|              | eth0                         \
+                        |  eth1        |                               \
+  home machine 2 ------&gt;|-------&gt; router/firewall                      INTERNET---&gt;www.google.ca
+                        |              |                               /          (173.194.43.95)
+  home machine 3 ------&gt;|              | ppp0                         /
+                                       v                             /
+                                   DSL modem   ------&gt; ISP2 --------+
 </pre>
 
-<p>Each line of the table defines a "service" that corresponds to an ISP
-or a connected LAN. </p>
+<p>The router/firewall is connected to the home network via network interface eth1. It is connected to the internet via two ISPs, one using a cable modem attached to interface eth0, and the other using a DSL modem via interface ppp0.</p>
+
+<p>The example balance.conf file contains a commented table that corresponds to this network topology:</p>
+
+<pre>
+ ##service    device   role     ping-ip
+ #CABLE       eth0     isp      173.194.43.95     <b>
+ #DSL         ppp0     isp      173.194.43.95     <b>
+ #LAN         eth1     lan                        <b>
+</b></b></b></pre>
+
+<p>Remove the # signs from the body of the table and edit to match your network. </p>
 
 <p>The first column is a service name that is used to
 bring up or down the needed routes and firewall rules.</p>
@@ -142,6 +134,21 @@ to be monitored and will be brought up when it is once again
 working. Choose a host that is not likely to go offline for reasons
 unrelated to your network connectivity, such as google.com, or the
 ISP's web site.</p>
+
+<p>If this package is running on a single Internet-connected host, not a router, then do not include a "lan" line.</p>
+
+<p>There are additional configuration options related to how often the link status is monitored. You may wish to uncomment and adjust these as well:</p>
+
+<pre>
+#warn_email=root@localhost
+#interval_ms=1000
+#max_packet_loss=15
+#max_successive_pkts_lost=7
+#min_packet_loss=5
+#min_successive_pkts_rcvd=10
+</pre>
+
+<p><b>warn_email</b> provides an email address to send notification messages to if the status of a link changes (goes down, or comes back up). You must have the "mail" program installed and configured for this to work. <b>interval_ms</b> indicates how often to check the ping host for each ISP. <b>min_packet_loss</b> and <b>max_packet_loss</b> define the minimum and maximum packet losses required to declare a link up or down. <b>min_successive_pkts_rcvd</b> and <b>max_successive_pkts_recvd</b> define the minimum and maximum numbers of successively-transmitted pings that must be returned in order to declare a link up or down.</p>
 
 <p></p>
 </li>
@@ -374,25 +381,18 @@ source code can be fond at <a href="http://lsm.foobar.fi/">http://lsm.foobar.fi/
 <p>Senior Principal Investigator, Ontario Institute for Cancer Research</p>
 </li>
 </ol>
-        </section>
-
-        <aside id="sidebar">
-          <a href="https://github.com/lstein/Net-ISP-Balance/zipball/master" class="button">
-            <small>Download</small>
-            .zip file
-          </a>
-          <a href="https://github.com/lstein/Net-ISP-Balance/tarball/master" class="button">
-            <small>Download</small>
-            .tar.gz file
-          </a>
-
-          <p class="repo-owner"><a href="https://github.com/lstein/Net-ISP-Balance"></a> is maintained by <a href="https://github.com/lstein">lstein</a>.</p>
-
-          <p>This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the Architect theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.</p>
-        </aside>
-      </div>
+      </section>
     </div>
 
-  
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Net-isp-balance maintained by <a href="https://github.com/lstein">lstein</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
   </body>
 </html>
