@@ -50,11 +50,14 @@ support</a> for other distributions.</p>
 <h1>
 <a name="installation" class="anchor" href="#installation"><span class="octicon octicon-link"></span></a>Installation</h1>
 
-<p></p><ol>
-<li> <span style="font-weight:bold">Working on the target machine
+<p>Here is a step-by-step summary of the steps to install, configure and test Net-ISP-Balance.</p>
+
+<h2>1. Download and unpack the distribution</h2>
+
+Working on the target machine
 (router or Internet-connected host), download and unpack the zip file
 of the source code from
-<a href="https://github.com/lstein/Net-ISP-Balance">https://github.com/lstein/Net-ISP-Balance</a>.</span> 
+<a href="https://github.com/lstein/Net-ISP-Balance">https://github.com/lstein/Net-ISP-Balance</a>.
 
 <p>Example:</p>
 
@@ -72,13 +75,14 @@ machine, and optionally check out a stable release. For example:</p>
 <pre>
  % git clone https://github.com/lstein/Net-ISP-Balance.git
  % cd Net-ISP-Balance
- % git checkout release-1_02
+ % git checkout release-1_03  # (optional!)
 </pre>
 
 <p></p>
-</li>
 
-<li> <span style="font-weight:bold">Check/install the following prerequisites on the router/host:</span>
+<h2>2. Check and install prerequisites</h2>
+
+The following software packages are required for Net-ISP-Balance to run:
 
 <ul>
 <li> C compiler and "make" tool. ("apt-get install build-essential" on
@@ -93,36 +97,32 @@ machine, and optionally check out a stable release. For example:</p>
 <li> <span style="font-weight:bold">Enter the Net-ISP-Balance directory and run:</span>
 
 <pre>
-  perl ./Build.PL
-  ./Build installdeps
-  ./Build test
-  sudo ./Build install
+  % perl ./Build.PL
+  % ./Build installdeps
+  % ./Build test
+  % sudo ./Build install
 </pre>
 
 <p></p>
-</li>
-<li> <b>Edit the example configuration file <i>balance.conf</i></b>.
-If you are on a Ubuntu/Debian system, this file will be
-located at /etc/network/balance.conf. If you are on a RedHat/CentOS
+
+<h2>3. Modify the balance.conf configuration file</h2>
+
+Edit the example configuration file <i>balance.conf</i> to match your
+network topology. If you are on a Ubuntu/Debian system, this file will
+be located at /etc/network/balance.conf. If you are on a RedHat/CentOS
 system, you'll find it in /etc/sysconfig/network-scripts/balance.conf.
 
 <p>You'll need to edit this file to match your network topology. Here is a typical home router setup:</p>
 
-<pre>
-                                   Cable modem ------&gt; ISP1 --------+
-                                       ^                             \
-  home machine 1 ------&gt;|              | eth0                         \
-                        |  eth1        |                               \
-  home machine 2 ------&gt;|-------&gt; router/firewall                      INTERNET---&gt;www.google.ca
-                        |              |                               /          (173.194.43.95)
-  home machine 3 ------&gt;|              | ppp0                         /
-                                       v                             /
-                                   DSL modem   ------&gt; ISP2 --------+
-</pre>
+<img width="600" src="./images/network-topology.png" />
 
-<p>The router/firewall is connected to the home network via network interface eth1. It is connected to the internet via two ISPs, one using a cable modem attached to interface eth0, and the other using a DSL modem via interface ppp0.</p>
+<p>The router/firewall is connected to the home network via network
+interface eth1. It is connected to the internet via two ISPs, one
+using a cable modem attached to interface eth0, and the other using a
+DSL modem via interface ppp0.</p>
 
-<p>The example balance.conf file contains a commented table that corresponds to this network topology:</p>
+<p>The example balance.conf file contains a commented table that
+corresponds to this network topology:</p>
 
 <pre>
  ##service    device   role     ping-ip
@@ -169,55 +169,56 @@ ISP's web site.</p>
 <p><span style="font-weight:bold">warn_email</span> provides an email address to send notification messages to if the status of a link changes (goes down, or comes back up). You must have the "mail" program installed and configured for this to work. <span style="font-weight:bold">interval_ms</span> indicates how often to check the ping host for each ISP. <span style="font-weight:bold">min_packet_loss</span> and <span style="font-weight:bold">max_packet_loss</span> define the minimum and maximum packet losses required to declare a link up or down. <span style="font-weight:bold">min_successive_pkts_rcvd</span> and <span style="font-weight:bold">max_successive_pkts_recvd</span> define the minimum and maximum numbers of successively-transmitted pings that must be returned in order to declare a link up or down.</p>
 
 <p></p>
-</li>
-<li> <span style="font-weight:bold">(optional) Make edits to the firewall and route rules.</span>
 
-<p>This mechanism allows you to add additional entries to the routing
-tables and/or firewall. See Further Configuration for more details.</p>
+<h2>4. Make edits to the firewall and route rules (optional)</h2>
+
+<p>Net-ISP-Balance allows you to add customized entries to the routing
+and firewall tables. See <a href="#further-configuration">Further
+Configuration</a> for more details.</p>
 
 <p></p>
-</li>
-<li> <span style="font-weight:bold">(optional) Run load_balance.pl in debug mode to see the commands it
-will execute.</span>
+
+<h2>5. Test load_balance.pl in debug mode (optional)</h2>
 
 <p>If you wish to check how the balancing script will configure your
 system when you execute it, then run (as a regular user) the following
 command:</p>
 
 <pre>
- /etc/network/load_balance.pl -d &gt; commands.sh    # Ubuntu/Debian
-
--or-
-
- /etc/sysconfig/network-scripts/load_balance.pl -d &gt; commands.sh  # RedHat/CentOS
+ % sudo load_balance.pl  -d &gt; commands.sh    # Ubuntu/Debian
+ % su -c load_balance.pl -d &gt; commands.sh    # RedHat/CentOS
 </pre>
 
-<p>The "-d" argument puts the script into debug mode. All commands that
-it would run on your behalf are placed into 'commands.sh' for your
-inspection. You may also execute commands.sh to start balanced routing
-and firewalling:</p>
+<p>The "-d" argument puts the script into debug mode. All commands
+that it would run on your behalf are placed into 'commands.sh' for
+your inspection. If you wish, you may pass these commands to the shell
+in order to preview how your system will perform under load
+balancing. An example of how to do this is shown below. Note that this
+doesn't start the link status monitoring daemon needed for automatic
+failover.</p>
 
 <pre>
- /bin/sh commands.sh
+ % /bin/sh commands.sh
 </pre>
 
 <p></p>
-</li>
-<li> Start the script running. Become the superuser and run
-load_balance.pl:
+
+<h2>6. Start load_balance.pl</h2>
+
+<p>Become the superuser and run load_balance.pl</p>
 
 <pre>
- sudo /etc/network/load_balance.pl                      # Ubuntu/Debian
- su -c /etc/sysconfig/network-scripts/load_balance.pl   # RedHat/CentOS
+ sudo load_balance.pl    # Ubuntu/Debian
+ su -c load_balance.pl   # RedHat/CentOS
 </pre>
 
 <p>This will configure the system for load balancing, installing a
-restrictive set of firewall rules, and launch the lsm daemon to
-monitor each of the ISPs for activity.</p>
+restrictive set of firewall rules, and launch the load status monitor
+(lsm) daemon to monitor each of the ISPs for activity.</p>
 
 <p></p>
-</li>
-<li> <span style="font-weight:bold">Arrange for load_balance.pl to be run on system startup time.</span>
+
+<h2>7. Arrange for load_balance.pl to be run on system startup time.</h2>
 
 <p>You may do this by adding an entry in rc.local:</p>
 
@@ -229,7 +230,7 @@ monitor each of the ISPs for activity.</p>
 
 <p>Modify as needed for RedHat/CentOS.</p>
 
-<p>However, my preference is to invoke the script when the LAN interface
+<p>Alternatively, my preference is to invoke the script when the LAN interface
 comes up. On Ubuntu/Debian systems, edit
 <i>/etc/network/interfaces</i> (Ubuntu/Debian), find the reference to
 the LAN interface, and edit it to add a "post-up" option as shown
@@ -273,7 +274,7 @@ Ubuntu/Debian systems:</p>
  /etc/network/balance/routes         # routes
 </pre>
 
-<p>and here on RedHat/CentOS systems:</p>
+<p>and in these directories on RedHat/CentOS systems:</p>
 
 <pre>
  /etc/sysconfig/network-scripts/balance/firewall       # firewall rules
@@ -288,6 +289,7 @@ load balancing script.</p>
 below.</p>
 
 <pre>
+ # filename: /net/network/balance/routes/01.local_routes
  ip route add 192.168.100.1  dev eth0 src 198.162.1.14
  ip route add 192.168.1.0/24 dev eth2 src 10.0.0.4
 </pre>
@@ -299,6 +301,7 @@ scripting constructs are not allowed here.</p>
 <p>A typical firewall rules file will look like the example shown here:</p>
 
 <pre>
+ # filename: /net/network/balance/firewall/02.accept
  # accept incoming telnet connections to the router
  iptable -A INPUT -p tcp --syn --dport telnet -j ACCEPT
 
@@ -306,13 +309,14 @@ scripting constructs are not allowed here.</p>
  iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE
 </pre>
 
-<p>You may also insert routing and firewall rules via fragments of Perl
-code, which is convenient because you don't have to hard-code any
-network addresses and can make use of a variety of shortcuts. To do
-this, simply end the file's name with .pl and make it executable.</p>
+<p>You may also insert routing and firewall rules via fragments of
+Perl code, which is convenient because you can get the configured
+service and interface names from the configuration file and can make
+use of a variety of shortcuts. To do this, simply end the file's name
+with .pl and make it executable.</p>
 
 <p>Here's an example of a file named
-<tt>balance/firewall/01.forwardings.pl</tt> that defines a series of
+<tt>balance/firewall/02.forwardings.pl</tt> that defines a series of
 port forwarding rules for incoming connections:</p>
 
 <pre>
@@ -376,7 +380,9 @@ ISP to use for outgoing connections:</p>
 </pre>
 
 <p>This strategy is described at
-<a href="https://home.regit.org/netfilter-en/links-load-balancing/">https://home.regit.org/netfilter-en/links-load-balancing/</a>.</p>
+<a href="https://home.regit.org/netfilter-en/links-load-balancing/">https://home.regit.org/netfilter-en/links-load-balancing/</a>. The
+module always gives each ISP equal weight; a future version may
+support the ability to weight traffic towards one ISP or another.</p>
 
 <h1>
 <a name="license" class="anchor" href="#license"><span class="octicon octicon-link"></span></a>License</h1>
