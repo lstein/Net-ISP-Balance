@@ -49,18 +49,18 @@ for other distributions.</p>
 <a name="installation" class="anchor" href="#installation"><span class="octicon octicon-link"></span></a>Installation</h1>
 
 <p></p><ol>
-<li> Download the zip file of the source code from
+<li> <b>Download the zip file of the source code from
 <a href="https://github.com/lstein/Net-ISP-Balance">https://github.com/lstein/Net-ISP-Balance</a>, or use git to clone the
-repository. 
+repository. </b>
 
 <p></p>
 </li>
-<li> Place the unpacked subdirectory in a home directory on the
-router/firewall machine.
+<li> <b>Place the unpacked subdirectory in a home directory on the
+router/firewall machine.</b>
 
 <p></p>
 </li>
-<li> Check/install the following prerequisites on the router:
+<li> <b>Check/install the following prerequisites on the router:</b>
 
 <ul>
 <li> C compiler and "make" tool. ("apt-get install build-essential" on
@@ -72,7 +72,7 @@ router/firewall machine.
 </ul>
 <p></p>
 </li>
-<li> Enter the unpacked directory and run:
+<li> <b>Enter the unpacked directory and run:</b>
 
 <pre>
   perl ./Build.PL
@@ -83,8 +83,8 @@ router/firewall machine.
 
 <p></p>
 </li>
-<li> Edit the example configuration file <i>balance.conf</i> to
-balance.conf. If you are on a Ubuntu/Debian system, this file will be
+<li> <b>Edit the example configuration file <i>balance.conf</i></b>.
+If you are on a Ubuntu/Debian system, this file will be
 located at /etc/network/balance.conf. If you are on a RedHat/CentOS
 system, you'll find it in /etc/sysconfig/network-scripts/balance.conf.
 
@@ -152,15 +152,15 @@ ISP's web site.</p>
 
 <p></p>
 </li>
-<li> (optional) Make edits to the firewall and route rules.
+<li> <b>(optional) Make edits to the firewall and route rules.</b>
 
 <p>This mechanism allows you to add additional entries to the routing
 tables and/or firewall. See Further Configuration for more details.</p>
 
 <p></p>
 </li>
-<li> (optional) Run load_balance.pl in debug mode to see the commands it
-will execute.
+<li> <b>(optional) Run load_balance.pl in debug mode to see the commands it
+will execute.</b>
 
 <p>If you wish to check how the balancing script will configure your
 system when you execute it, then run (as a regular user) the following
@@ -199,7 +199,7 @@ monitor each of the ISPs for activity.</p>
 
 <p></p>
 </li>
-<li> Arrange for load_balance.pl to be run on system startup time.
+<li> <b>Arrange for load_balance.pl to be run on system startup time.</b>
 
 <p>You may do this by adding an entry in rc.local:</p>
 
