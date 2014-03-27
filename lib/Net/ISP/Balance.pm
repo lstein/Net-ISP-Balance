@@ -8,7 +8,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.02';
+our $VERSION    = '1.03';
 
 =head1 NAME
 
@@ -62,7 +62,7 @@ This library supports load_balance.pl, a script to load-balance a home
 network across two or more Internet Service Providers (ISP). The
 load_balance.pl script can be found in the bin subdirectory of this
 distribution. Installation and configuration instructions can be found
-at http://lstein.github.io/Net-ISP-Balance/
+at http://lstein.github.io/Net-ISP-Balance/.
 
 =head1 FREQUENTLY-USED METHODS
 
@@ -289,7 +289,7 @@ sub sh {
     }
 }
 
-=head2 $bal->iptables(@args), but not executed.
+=head2 $bal->iptables(@args)
 
 Invoke sh() to call "iptables @args". 
 
