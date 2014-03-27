@@ -5,7 +5,7 @@ etc/balance.conf
 etc/balance/firewall/01.forwardings.pl
 etc/balance/firewall/01.iptable_extras
 etc/balance/firewall/02.accept
-etc/balance/firewall/02.accept.pl
+etc/balance/firewall/03.accept.pl
 etc/balance/routes/01.local_routes.conf
 lib/Net/ISP/Balance.pm
 LICENSE

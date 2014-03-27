@@ -1,11 +1,11 @@
 package Net::ISP::Balance;
 
 use strict;
-use Net::Netmask;
 use IO::String;
 use Fcntl ':flock';
 use Carp 'croak','carp';
 
+eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
 our $VERSION    = '1.02';
