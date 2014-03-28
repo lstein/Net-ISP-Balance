@@ -398,12 +398,110 @@ support the ability to weight traffic towards one ISP or another.</p>
 How Do I...?</h1>
 
 <dl>
-  <dt>Allow an incoming connection to a web server running on my
-  router/firewall machine?
+  <dt>...Allow an incoming connection to a web server running on my
+  router/firewall machine?</dt>
   <dd>Create a file
   named <tt>/etc/network/balance/firewall/04.webserver.conf</tt>. Set
   the contents to:
-    
+    <pre>
+      iptables -A INPUT -p tcp --syn --dport 80  -j ACCEPT
+      iptables -A INPUT -p tcp --syn --dport 443 -j ACCEPT
+    </pre>
+    <p>Connections will be accepted on any of public IP addresses that
+      is assigned to your router machine by your ISPs. You will likely want
+      to publish a domain name for this machine using a dynamic DNS
+      hosting service that allows you to run a "round-robin" on the
+      domain
+      name. See <a href="http://en.wikipedia.org/wiki/Round-robin_DNS">Robin-robin
+      DNS</a> for information on the technique, and perform a Google
+      search for "Round-robin dynamic DNS" for a list of paid DNS hosting services
+      that implement this service.</p>
+    <p>You must run load_balance.pl once after making this edit in
+    order to have the changes take effect.</p>
+    <p>Be aware that the location of the firewall rules directory
+    different on RedHat and Debian-derived
+    systems. See <a href="#further-configuration">Further
+    Configuration</a> for the path on your system.</p>
+  </dd>
+  
+  <dt>...Allow an incoming connection to a web server running on my
+  router/firewall machine, but prevent flooding attacks by limiting
+    incoming connections to 5 per second?</dt>
+  <dd>Change the contents of <tt>/etc/network/balance/firewall/04.webserver.conf</tt>
+    to:
+    <pre>
+      iptables -A INPUT -p tcp --syn --dport 80  -m limit --limit 5/s --limit-burst 20 -j ACCEPT
+      iptables -A INPUT -p tcp --syn --dport 80  -j DROPFLOOD
+      iptables -A INPUT -p tcp --syn --dport 443 -m limit --limit 5/s --limit-burst 20 -j ACCEPT
+      iptables -A INPUT -p tcp --syn --dport 443 -j DROPFLOOD
+    </pre>
+    <p>DROPFLOOD is a firewall rule defined by Net-ISP-Balance that
+      drops the connection and logs it to the system log.</p>
+  </dd>
+
+  <dt>...Allow an incoming connection to a web server running on another
+    machine in my LAN?</dt>
+  <dd>This is a firewall forwarding rule that has a Perl shortcut
+    to help implement it. Assuming that the web server running on your
+    LAN is at address 192.168.1.10, create the
+    file <tt>/etc/balance/firewall/04.webserver.pl</tt>, 
+    make it executable, and write these contents:
+    <pre>
+      $B->forward(80  => '192.168.1.10');
+      $B->forward(443 => '192.168.1.10');
+    </pre>
+    <p>The $B is a Perl variable that holds the Net::ISP::Balance
+      code object. "forward" is the name of a subroutine call.</p>
+  </dd>
+
+  <dt>...Forward connections to port 80 on one of my router's public
+  IP addresses to port 8080 on a web server machine running on another
+  machine in my LAN?</dt>
+  <dd>This is similar to the previous recipe, except that you
+  indicate the destination IP address on the internal machine:
+    <pre>
+      $B->forward(80  => '192.168.1.10:8080');
+    </pre>
+  </dd>
+
+  <dt>...Allow machines on the LAN to access the control interface of
+  a cable and/or DSL modem attached to the router?</dt>
+  <dd>Cable and DSL modems usually provide a web-based control interface
+    associated with the modem's IP address. Sometimes the routing
+    rules that Net-ISP-Balance installs do not provide access to
+    the modem, and attempting to connect to it will fail. There are
+    two alternative techniques to correct this, depending on the type
+    of modem you are using.
+  </dd>
+  <dd>
+    <p>Modems in "bridge" mode:</p>
+    <p>This works when the modem's control interface is separate from
+      its data interface. This is the case for a DSL modem that runs
+      PPPOE in bridge mode. Its primary data interface is ppp0 and its
+      control interface is an ethernet interface such as eth2. Create the file
+      /etc/network/balance/routes/01.modem_route.pl containing the
+      following:
+      <pre>
+	$B->add_network('192.168.1.1/32'=>'eth2');
+      </pre> 
+      <p>Replace "192.168.1.1" with the modem's IP address
+	and "eth2" with the network interface that the modem is
+	attached to. 
+	Make the file executable, and run load_balance.pl.</p>
+      <p>Modems in "router" mode:</p>
+      <p>In other cases, the modem performs routing on its own and has
+	just a single interface, such as eth2. In this case, you
+	have to tell the router to make sure that connections intended
+	for the modem always go out through this interface. Open
+	/etc/network/balance/routes/01.modem_route.pl and enter the
+	following:
+	<pre>
+	  $B->force_route(-dest     => '192.168.1.1/32',
+	                  -device   => 'eth2'
+	</pre>
+	<p>Replace "192.168.1.1" with the modem's IP address, and
+	"eth2" with the network interface the modem is attached to.</p>
+  </dd>
 </dl>
 
 
