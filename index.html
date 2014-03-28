@@ -39,6 +39,14 @@ across both ISP connections to increase upload and download capacity,
 and if one ISP fails, the other ISP(s) will take over
 automatically.</p>
 
+<p>Bandwidth is distributed on a per-connection level. This means that
+you will not see the aggregated bandwidth on any particular download
+or speed benchmark, but you will see the benefits when multiple data
+transfers are occurring simultaneously, for example, when several
+individuals in your household are streaming movies. In addition,
+multi-connection file transfer protocols such as BitTorrent, will see
+the benefits of the load balancing.</p>
+
 <p>This package runs on Linux systems, and will not work on Windows or
 Mac OSX systems. It was designed to interoperate smoothly with
 distributions based on Debian (e.g. Ubuntu, Mint), as well as those
@@ -355,7 +363,7 @@ standard output for inspection.</p>
 <h1>
 <a name="how-it-works" class="anchor" href="#how-it-works"><span class="octicon octicon-link"></span></a>How it Works</h1>
 
-<p>The script uses two tricks to balance. The first is to set up a
+<p>The script uses two load balancing techniques. The first is to set up a
 multipath default routing destination as described at
 <a href="http://lartc.org/howto/lartc.rpdb.multiple-links.html">http://lartc.org/howto/lartc.rpdb.multiple-links.html</a></p>
 
@@ -365,12 +373,12 @@ multipath default routing destination as described at
     nexthop via 198.5.13.201    dev eth0 weight 1
 </pre>
 
-<p>This balances network sessions originating from the router, but does
-not work for forwarded (NAT-ed) sessions from the LAN. To accomplish
-the latter, the script uses a combination of ip routing tables for
-outgoing connections, the firewall mark (fwmark) mechanism to select
-tables, and the iptables "mangle" chain to randomly select which
-ISP to use for outgoing connections:</p>
+<p>This balances network sessions originating from the router, but
+does usually not work for forwarded (NAT-ed) sessions from the LAN. To
+accomplish the latter, the script uses a combination of ip routing
+tables for outgoing connections, the firewall mark (fwmark) mechanism
+to select tables, and the iptables "mangle" chain to randomly select
+which ISP to use for outgoing connections:</p>
 
 <pre>
  iptables -t mangle -A PREROUTING -i eth2 -m conntrack --ctstate NEW \
@@ -385,6 +393,21 @@ module always gives each ISP equal weight; a future version may
 support the ability to weight traffic towards one ISP or another.</p>
 
 <h1>
+<a name="use-cases" class="anchor"
+   href="#use-cases"><span class="octicon octicon-link"></span></a>
+How Do I...?</h1>
+
+<dl>
+  <dt>Allow an incoming connection to a web server running on my
+  router/firewall machine?
+  <dd>Create a file
+  named <tt>/etc/network/balance/firewall/04.webserver.conf</tt>. Set
+  the contents to:
+    
+</dl>
+
+
+<h1>
 <a name="license" class="anchor" href="#license"><span class="octicon octicon-link"></span></a>License</h1>
 
 <p>Perl Artistic License version 2.0
@@ -395,7 +418,8 @@ support the ability to weight traffic towards one ISP or another.</p>
 
 <p>This package contains a slightly-modified version of Mika Ilmaranta's
 &lt;ilmis at nullnet.fi&gt; Link Status Monitor (lsm) package. The original
-source code can be fond at <a href="http://lsm.foobar.fi/">http://lsm.foobar.fi/</a>.</p>
+source code can be fond
+  at <a href="http://lsm.foobar.fi/">http://lsm.foobar.fi/</a>.</p>
 
 <h1>
 <a name="author" class="anchor" href="#author"><span class="octicon octicon-link"></span></a>Author</h1>
