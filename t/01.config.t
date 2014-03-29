@@ -8,7 +8,7 @@ use FindBin '$Bin';
 use IO::String;
 use lib $Bin,"$Bin/../lib";
 
-use Test::More tests=>31;
+use Test::More tests=>33;
 
 my $ifconfig_eth0=<<'EOF';
 eth0      Link encap:Ethernet  HWaddr 00:02:cb:88:4f:11  
@@ -150,6 +150,21 @@ ok($output =~ /iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 23 -j DNAT -
    'local forward rules working PREROUTING');
 ok($output =~ m!iptables -A INPUT -p tcp -s 192.168.12.0/24 --syn --dport ssh -j ACCEPT!,
    'local accept rules working');
+
+$output = capture(sub {
+    $bal->force_route('CABLE',-syn,-p=>'tcp',-dport=>25);
+		  });
+is($output,"iptables -t mangle -A PREROUTING --syn -p tcp --dport 25 -j MARK-CABLE\n",'force_route()');
+
+$output = capture(
+    sub {
+	{
+	    local $bal->{firewall_op} = 'delete';
+	    $bal->force_route('CABLE',-syn,-p=>'tcp',-dport=>25);
+	}
+    }
+);
+is($output,"iptables -t mangle -D PREROUTING --syn -p tcp --dport 25 -j MARK-CABLE\n",'delete force_route()');
 
 exit 0;
 
