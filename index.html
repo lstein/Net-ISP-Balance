@@ -496,10 +496,12 @@ How Do I...?</h1>
 	/etc/network/balance/routes/01.modem_route.pl and enter the
 	following:
 	<pre>
-	  $B->force_route(-dest     => '192.168.1.1/32',
-	                  -device   => 'eth2');
+	  $B->force_route('eth2',
+                          -syn,
+                          -p           => 'tcp',
+	                  -destination => '192.168.1.100/32');
 	</pre>
-	<p>Replace "192.168.1.1" with the modem's IP address, and
+	<p>Replace "192.168.1.100" with the modem's management IP address, and
 	"eth2" with the network interface the modem is attached to.</p>
   </dd>
 </dl>
