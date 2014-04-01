@@ -482,28 +482,65 @@ How Do I...?</h1>
       /etc/network/balance/routes/01.modem_route.pl containing the
       following:
       <pre>
-	$B->add_network('192.168.1.1/32'=>'eth2');
+	$B->add_route('192.168.1.1/32'=>'eth2',1);
       </pre> 
       <p>Replace "192.168.1.1" with the modem's IP address
 	and "eth2" with the network interface that the modem is
-	attached to. 
+	attached to. The "1" argument causes connections to the modem
+	to be masqueraded, which is handy in the case that the modem
+	doesn't correctly route its responses back to your LAN.
 	Make the file executable, and run load_balance.pl.</p>
       <p>Modems in "router" mode:</p>
-      <p>In other cases, the modem performs routing on its own and has
-	just a single interface, such as eth2. In this case, you
-	have to tell the router to make sure that connections intended
-	for the modem always go out through this interface. Open
-	/etc/network/balance/routes/01.modem_route.pl and enter the
-	following:
+      <p>In other cases, the modem performs routing on its own and
+	shares the same interface as an ISP connection. In this case,
+	you have to tell the router to make sure that connections
+	intended for the modem always go out through this
+	interface. Open /etc/network/balance/routes/01.modem_route.pl
+	and enter the following:
 	<pre>
-	  $B->force_route('eth2',
-                          -syn,
-                          -p           => 'tcp',
-	                  -destination => '192.168.1.100/32');
+	  $B->force_route('CABLE','--syn -p tcp -d 192.168.1.100/32');
 	</pre>
 	<p>Replace "192.168.1.100" with the modem's management IP address, and
-	"eth2" with the network interface the modem is attached to.</p>
+	"CABLE" with the ISP service name that the modem is attached to.</p>
   </dd>
+
+  <dt>...Force outgoing mail connections to go to a particular ISP?</dt>
+  <dd>You may wish for all your outgoing email to be routed through a
+  mail transfer host provided by one of your ISPs. However, many ISPs
+  only accept mail from IP addresses within the blocks that they
+  assign. To force all outgoing mail to go to the "CABLE" ISP, create
+  an executable file named 02.outgoing_mail.pl in $ETC_NETWORK/balance/firewall/
+  with contents similar to this one:
+    <pre>
+	  $B->force_route('CABLE','--syn -p tcp --dport 25');
+    </pre>
+  </dd>
+
+  <dt>...Run an OpenVPN server on my router?</dt>
+  <dd>VPNs and other applications that manipulate the routing table
+    must be run <b>after</b> load_balance.pl does its thing. Put a command that
+    restarts OpenVPN into $ETC_NETWORK/balance/post-run/99.openvpn:
+    <pre>
+      /etc/init.d/openvpn restart
+    </pre>
+
+    Adjust as needed for your distribution. In addition you will need
+    to define firewall rules that allow OpenVPN to route between the
+    VPN tunneling interface (typically tun0) and your LAN. Create the
+    file $ETC_NETWORK/balance/firewall/99.openvpn.pl, containing these
+    lines of code:
+    <pre>
+      $B->iptables("-I INPUT -p $_ --dport 1194 -j ACCEPT") foreach ('udp','tcp');
+      $B->iptables("-I INPUT  -i tun0 -j ACCEPT');
+      $B->iptables("-I OUTPUT -o tun0 -j ACCEPT');
+      foreach ($B->lan_services) {
+         $B->iptables('-I FORWARD -i tun0 -o',$B->dev($_),'-j ACCEPT');
+         $B->iptables('-I FORWARD -o tun0 -i',$B->dev($_),'-j ACCEPT');
+      }
+    </pre>
+
+  </dd>
+
 </dl>
 
 
