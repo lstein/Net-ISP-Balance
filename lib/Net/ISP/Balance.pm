@@ -530,7 +530,7 @@ sub add_route {
 			     -j    => 'ACCEPT') for $self->lan_services;
     }
     if ($masquerade) {
-	$self->firewall_rule(PREROUTING=>'nat',
+	$self->firewall_rule(POSTROUTING=>'nat',
 			     -d => $network,
 			     -o => $device,
 			     -j => 'MASQUERADE');
