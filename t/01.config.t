@@ -8,7 +8,7 @@ use FindBin '$Bin';
 use IO::String;
 use lib $Bin,"$Bin/../lib";
 
-use Test::More tests=>33;
+use Test::More tests=>35;
 
 my $ifconfig_eth0=<<'EOF';
 eth0      Link encap:Ethernet  HWaddr 00:02:cb:88:4f:11  
@@ -165,6 +165,13 @@ $output = capture(
     }
 );
 is($output,"iptables -t mangle -D PREROUTING --syn -p tcp --dport 25 -j MARK-CABLE\n",'delete force_route()');
+
+$output = capture(sub {$bal->add_route('10.10.10.10/8' => 'wlan0',1)});
+ok($output =~ m!ip route add 10.10.10.10/8 dev wlan0 table 1!,
+   'add_route routing table');
+ok($output =~ m!iptables -I FORWARD -i eth1 -s 192.168.10.0/24 -o wlan0 -d 10.10.10.10/8 -j ACCEPT!,
+   'add_route firewall');
+1;
 
 exit 0;
 

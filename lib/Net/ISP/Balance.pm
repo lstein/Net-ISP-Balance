@@ -324,7 +324,7 @@ sub iptables {
 
 sub _iptables_add_rule {
     my $self = shift;
-    my ($operation,$table,$chain,@args) = @_;
+    my ($operation,$chain,$table,@args) = @_;
     croak "You must provide a chain name" unless $chain;
     my $op  = $operation eq 'append' ? '-A'
 	     :$operation eq 'delete' ? '-D'
@@ -363,20 +363,20 @@ sub iptables_insert {
     $self->_iptables_add_rule('insert',$table,$chain,@args);
 }
 
-=head2 $bal->firewall_rule($table,$chain,@args)
+=head2 $bal->firewall_rule($chain,$table,@args)
 
 Issue an iptables firewall rule.
 
+ $chain -- The chain to apply the rule to, e.g. "INPUT". 
+ 
  $table -- The table to apply the rule to, e.g. "nat". Undef defaults to
            the standard "filter" table.
 
- $chain -- The chain to apply the rule to, e.g. "INPUT". 
- 
  @args  -- The other arguments to pass to iptables.
 
 Here is a typical example of blocking incoming connections to port 25:
 
- $bal->firewall_rule(undef,'INPUT',-p=>'tcp',-dport=>25,-j=>'REJECT');
+ $bal->firewall_rule(INPUT=>undef,-p=>'tcp',-dport=>25,-j=>'REJECT');
 
 This will issue the following command:
 
@@ -388,7 +388,7 @@ strings "append", "delete", "insert" or "check". Subsequent calls to
 firewall_rule() will return commands for the indicated function:
 
  $bal->firewall_op('delete');
- $bal->firewall_rule(undef,'INPUT',-p=>'tcp',-dport=>25,-j=>'REJECT');
+ $bal->firewall_rule(INPUT=>undef,-p=>'tcp',-dport=>25,-j=>'REJECT');
  # gives  iptables -A INPUT -p tcp --dport 25 -j REJECT
 
 If you want to apply a series of deletes and then revert to the
@@ -397,20 +397,20 @@ original append behavior, then it is easiest to localize the hash key
 
  {
    local $bal->{firewall_op} = 'delete';
-   $bal->firewall_rule(undef,'INPUT',-dport=>25,-j=>'ACCEPT');
-   $bal->firewall_rule(undef,'INPUT',-dport=>80,-j=>'ACCEPT');
+   $bal->firewall_rule(INPUT=>undef,-dport=>25,-j=>'ACCEPT');
+   $bal->firewall_rule(INPUT->undef,-dport=>80,-j=>'ACCEPT');
  }
  
-   $bal->firewall_rule(undef,'INPUT',-dport=>25,-j=>'DROP');
-   $bal->firewall_rule(undef,'INPUT',-dport=>80,-j=>'DROP');
+   $bal->firewall_rule(INPUT=>undef,-dport=>25,-j=>'DROP');
+   $bal->firewall_rule(INPUT=>undef,-dport=>80,-j=>'DROP');
 
 =cut
 
 sub firewall_rule {
     my $self = shift;
-    my ($table,$chain,@args) = @_;
+    my ($chain,$table,@args) = @_;
     my $operation = $self->firewall_op();
-    $self->_iptables_add_rule($operation,$table,$chain,@args);
+    $self->_iptables_add_rule($operation,$chain,$table,@args);
 }
 
 sub firewall_op {
@@ -471,7 +471,66 @@ sub force_route {
 
     my $dest      = $self->mark_table($service);
     my $selectors = $self->_process_iptable_options(@selectors);
-    $self->firewall_rule('mangle','PREROUTING',$selectors,-j=>$dest);
+    $self->firewall_rule(PREROUTING=>'mangle',$selectors,-j=>$dest);
+}
+
+=head2 $bal->add_route($address => $device, [$masquerade])
+
+This method is used to create routing and firewall rules for a network
+that isn't mentioned in balance.conf. This may be necessary to route
+to VPNs and/or to the control interfaces of attached modems.
+
+The first argument is the network address in CIDR format,
+e.g. '192.168.2.0/24'. The second is the network interface that the
+network can be accessed via. The third, optional, argument is a
+boolean. If true, then firewall rules will be set up to masquerade
+from the LAN into the attached network.
+
+Note that this is pretty limited. If you want to do anything more
+sophisticated you're better off setting the routes and firewall rules
+manually.
+
+=cut
+
+sub add_route {
+    my $self = shift;
+    my ($network,$device,$masquerade) = @_;
+    $network && $device or croak "usage: add_network(\$network,\$device,[\$masquerade])";
+    # add the route to our main table
+    $self->ip_route("add $network dev $device");
+    # add the route to each outgoing table
+    $self->ip_route("add $network dev $device table $_") for map {$self->table($_)} $self->isp_services;
+    
+    # create appropriate firewall rules for the network
+    {
+	local $self->{firewall_op} = 'insert';
+	$self->firewall_rule(OUTPUT => undef,
+			     -o    => $device,
+			     -d    => $network,
+			     -j    => 'ACCEPT');
+	$self->firewall_rule(INPUT => undef,
+			     -i    => $device,
+			     -s    => $network,
+			     -j    => 'ACCEPT');
+	$self->firewall_rule(FORWARD => undef,
+			     -i    => $self->dev($_),
+			     -s    => $self->net($_),
+			     -o    => $device,
+			     -d    => $network,
+			     -j    => 'ACCEPT') for $self->lan_services;
+	$self->firewall_rule(FORWARD => undef,
+			     -i    => $device,
+			     -s    => $network,
+			     -o    => $self->dev($_),
+			     -d    => $self->net($_),
+			     -j    => 'ACCEPT') for $self->lan_services;
+    }
+    if ($masquerade) {
+	$self->firewall_rule(PREROUTING=>'nat',
+			     -d => $network,
+			     -o => $device,
+			     -j => 'MASQUERADE');
+    }
 }
 
 sub _process_iptable_options {
