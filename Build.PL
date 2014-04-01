@@ -36,6 +36,8 @@ sub ACTION_install {
     # and rules files
     system "chmod u+w $install_etc/balance/firewall/*";
     system "chmod u+w $install_etc/balance/routes/*";
+    system "chmod u+w $install_etc/balance/pre-run/*";
+    system "chmod u+w $install_etc/balance/post-run/*";
 }
 
 sub process_lsm_files {

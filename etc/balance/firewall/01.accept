@@ -1,3 +1,5 @@
+## This file contains iptables statements that add additional firewall rules
+
 # allow incoming domain packets -- needed for DNS resolution
 iptables -A INPUT   -p udp --source-port domain -j ACCEPT
 # allow incoming NTP packets -- needed for net time protocol

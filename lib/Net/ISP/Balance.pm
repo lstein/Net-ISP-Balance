@@ -117,14 +117,16 @@ output as a series of shell script commands if echo_only() is set to
 true.
 
 The routing tables and firewall rules are based on the configuration
-described in balance.conf (usually /etc/network/balance.conf or
-/etc/sysconfig/network-scripts/balance.conf). You may add custom
-routes and rules by creating files in /etc/network/balance/routes and
-/etc/network/balance/firewall
-(/etc/sysconfig/network-scripts/balance/{routes,firewalls} on
-RedHat/CentOS systems). The former contains a series of files or perl
-scripts that define additional routing rules. The latter contains
-files or perl scripts that define additional firewall rules.
+described in $ETC_NETWORK/balance.conf. You may add custom routes and
+rules by creating files in $ETC_NETWORK/balance/routes and
+$ETC_NETWORK/balance/firewall. The former contains a series of files
+or perl scripts that define additional routing rules. The latter
+contains files or perl scripts that define additional firewall rules.
+
+Files located in $ETC_NETWORK/balance/pre-run will be executed just
+before load_balance.pl emits any route/firewall commands, while those
+in $ETC_NETWORK/balance/post-run will be run after load_balance.pl is
+finished.
 
 Any files you put into these directories will be read in alphabetic
 order and added to the routes and/or firewall rules emitted by the
@@ -224,10 +226,12 @@ sub set_routes_and_firewall {
 	warn "No ISP services seem to be up. Not altering routing tables or firewall.\n";
 	return;
     }
+    $self->pre_run_rules();
     $self->enable_forwarding(0);
     $self->set_routes();
     $self->set_firewall();
     $self->enable_forwarding(1);
+    $self->post_run_rules();
 }
 
 =head2 $verbose = $bal->verbose([boolean]);
@@ -1500,6 +1504,37 @@ sub local_fw_rules {
     my @files = sort glob("$dir/firewall/*");
     $self->_execute_rules_files(@files);
 }
+
+=head2 $bal->pre_run_rules()
+
+This method is called by set_routes_and_firewall() to process the fules and emit
+the commands contained in the customized route files located in
+$ETC_DIR/balance/pre-run.
+
+=cut
+
+sub pre_run_rules {
+    my $self = shift;
+    my $dir  = $self->rules_directory;
+    my @files = sort glob("$dir/pre-run/*");
+    $self->_execute_rules_files(@files);
+}
+
+=head2 $bal->post_run_rules()
+
+This method is called by set__routes_andfirewall() to process the
+fules and emit the commands contained in the customized route files
+located in $ETC_DIR/balance/post-run.
+
+=cut
+
+sub post_run_rules {
+    my $self = shift;
+    my $dir  = $self->rules_directory;
+    my @files = sort glob("$dir/post-run/*");
+    $self->_execute_rules_files(@files);
+}
+
 
 sub _execute_rules_files {
     my $self = shift;
