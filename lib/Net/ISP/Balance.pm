@@ -1126,14 +1126,14 @@ sub _collect_interfaces {
     }
 
     my $counter = 0;
-    for my $dev (keys %$iface_type) {
-	my $svc     = $devs{$dev} or next;
+    for my $dev (keys %devs) {
+	my $svc     = $devs{$dev};
 	my $role  = $svc ? $s->{$svc}{role} : '';
 	my $type  = $iface_type->{$dev};
 	my $info = $type eq 'static' ? $self->get_static_info($dev,$gateways->{$dev})
 	          :$type eq 'dhcp'   ? $self->get_dhcp_info($dev)
 	          :$type eq 'ppp'    ? $self->get_ppp_info($dev)
-		  :undef;
+		  :$self->guess_interface_info($dev);  # HACK FOR VPN tun0/tap0!! FIX!!!
 	$info ||= {dev=>$dev,running=>0}; # not running
 	$info or die "Couldn't figure out how to get info from $dev";
 	if ($role eq 'isp') {
@@ -1246,7 +1246,39 @@ sub get_ppp_info {
 	    fwmark => undef,};
 }
 
-=head2 $info = $bal->get_static_info($deb)
+# this subroutine gets called when there is no information in the interfaces table
+sub guess_interface_info {
+    my $self   = shift;
+    my $device = shift;
+    my $ifconfig = $self->_ifconfig($device) or return;
+    return $self->get_ppp_info($device)
+	if $ifconfig =~ /P-t-P/;
+    # otherwise we get the static info and then supplement
+    # with probing of the route table
+    my $r = $self->get_static_info($device,undef);
+    $r->{gw} = $self->_guess_gateway($device);  # this needs work
+    return;
+}
+
+sub _guess_gateway {
+    my $self = shift;
+    my $device = shift;
+
+    my ($current_network,%gateways);
+
+    open my $fh,"ip route show all |" or die "ip route: $!";
+    while (<$fh>) {
+	chomp;
+	$current_network = $1 if /^(\S+)/;
+	my ($destination_net,$gateway,$dev) = 
+	    /(\S+)\s+via\s+(\S+)\s+dev\s+(\w+)/ or next;
+	$destination_net = $current_network if $destination_net eq 'nexthop';
+	$gateways{$dev} = $gateway;
+    }
+    return $gateways{$device};
+}
+
+=head2 $info = $bal->get_static_info($device,$gw)
 
 This nmethod returns a hashref containing information about a
 statically-defined network interface device, including IP address,
