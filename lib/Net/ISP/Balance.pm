@@ -69,7 +69,7 @@ at http://lstein.github.io/Net-ISP-Balance/.
 Here are the class methods for this module that can be called on the
 class name.
 
-=head2 $bal = Net::ISP::Balance->new('/path/to/config_file.conf','/path/to/interfaces');
+=head2 $bal = Net::ISP::Balance->new('/path/to/config_file.conf');
 
 Creates a new balancer object. 
 
@@ -79,18 +79,13 @@ systems, and /etc/sysconfig/network-scripts/balance.conf on
 RedHat/CentOS-derived systems. From hereon, we'll refer to the base of
 the various configuration files as $ETC_NETWORK.
 
-The second optional argument is the system network interfaces file,
-defaulting to $ETC_NETWORK/interfaces.
-
 =cut
 
 sub new {
     my $class = shift;
-    my ($conf,$interfaces,$dummy_test_data)  = @_;
+    my ($conf,$dummy_test_data)  = @_;
     $conf       ||= $class->default_conf_file;
-    $interfaces ||= $class->default_interface_file;
     $conf       && -r $conf       || croak 'Must provide a readable configuration file path';
-    $interfaces && -r $interfaces || croak 'Must provide a readable network interfaces path';
     my $self  = bless {
 	verbose   => 0,
 	echo_only => 0,
@@ -99,11 +94,11 @@ sub new {
 	lsm_conf_file   => $class->default_lsm_conf_file,
 	lsm_scripts_dir => $class->default_lsm_scripts_dir,
 	bal_conf_file   => $conf,
-	dummy_data=>$dummy_test_data,
+	dummy_data      => $dummy_test_data,
     },ref $class || $class;
 
     $self->_parse_configuration_file($conf);
-    $self->_collect_interfaces($interfaces);
+    $self->_collect_interfaces();
 
     return $self;
 }
@@ -885,23 +880,6 @@ sub default_conf_file {
     return $self->install_etc.'/balance.conf';
 }
 
-=head2 $file_or_dir = Net::ISP::Balance->default_interface_file
-
-Returns the path to the place where the system stores its network
-configuration information. On Ubuntu/Debian-derived systems, this will
-be the file /etc/network/interfaces. On RedHad/CentOS-derived systems,
-this is the directory named /etc/sysconfig/network-scripts/ which
-contains a series of ifcfg-* files.
-
-=cut
-
-sub default_interface_file {
-    my $self = shift;
-    return '/etc/network/interfaces'        if -d '/etc/network';
-    return '/etc/sysconfig/network-scripts' if -d '/etc/sysconfig/network-scripts';
-    die "I don't know where to find network interface configuration files on this system";
-}
-
 =head2 $dir = Net::ISP::Balance->default_rules_directory
 
 Returns the path to the directory where the additional router and
@@ -1111,245 +1089,69 @@ sub _parse_configuration_file {
 
 sub _collect_interfaces {
     my $self = shift;
-    my $interfaces = shift;
     my $s    = $self->{svc_config} or return;
 
-    my ($iface_type,$gateways) = -f $interfaces ? $self->_get_debian_ifcfg($interfaces)   # 'network/interfaces' file
-                                                : $self->_get_centos_ifcfg($interfaces);  # 'network-scripts/ifcfg-*' files
-                               
-    my (%ifaces,%devs);
+    # get interfaces with assigned addresses
+    my $a    = $self->_ip_addr_show;
+    my (undef,@ifs)  = split /^\d+: /m,$a;
+    chomp(@ifs);
+    my %ifs = map {split(/: /,$_,2)} @ifs;
 
+    # get existing routes
+    my %gws;
+    my $r    = $self->_ip_route_show;
+    my @routes = split /^(?!\s)/m,$r;
+    chomp(@routes);
+    foreach (@routes) {
+	while (/(\S+)\s+via\s+(\S+)\s+dev\s+(\w+)/g) {
+	    my ($net,$gateway,$dev) = ($1,$2,$3);
+	    ($net) = /^(\S+)/ if $net eq 'nexthop';
+	    $gws{$dev} = $gateway;
+	}
+    }
+                               
     # map devices to services
+    my %devs;
     for my $svc (keys %$s) {
 	my $dev = $s->{$svc}{dev};
 	$devs{$dev}=$svc;
     }
 
+    my %ifaces;
     my $counter = 0;
-    for my $dev (keys %$iface_type) {
-	my $svc     = $devs{$dev} or next;
-	my $role  = $svc ? $s->{$svc}{role} : '';
-	my $type  = $iface_type->{$dev};
-	my $info = $type eq 'static' ? $self->get_static_info($dev,$gateways->{$dev})
-	          :$type eq 'dhcp'   ? $self->get_dhcp_info($dev)
-	          :$type eq 'ppp'    ? $self->get_ppp_info($dev)
-		  :undef;
-	$info ||= {dev=>$dev,running=>0}; # not running
-	$info or die "Couldn't figure out how to get info from $dev";
-	if ($role eq 'isp') {
-	    $counter++;
-	    $info->{fwmark} = $counter;
-	    $info->{table}  = $counter;
-	}
-	# next unless $info->{running};  # maybe we should do this?
-	$info->{ping} = $s->{$svc}{ping};
-	$info->{role} = $role;
-	$ifaces{$svc}=$info;
+    for my $dev (keys %devs) {
+	my $info      = $ifs{$dev} or next;
+	my $svc       = $devs{$dev};
+	my $role      = $s->{$svc}{role};
+	my $running   = $info =~ /[<,]UP[,>]/;
+	my ($addr,$bits)= $info =~ /inet (\d+\.\d+\.\d+\.\d+)(?:\/(\d+))?/;
+	$bits ||= 32;
+	my $block       = Net::Netmask->new("$addr/$bits");
+	$ifaces{$svc} = {
+	    dev     => $dev,
+	    running => $running,
+	    gw      => $gws{$dev},
+	    net     => "$block",
+	    ip      => $addr,
+	    fwmark  => $role eq 'isp' ? ++$counter : undef,
+	    table   => $role eq 'isp' ?   $counter : undef,
+	    role    => $role,
+	    ping    => $s->{$svc}{ping},
+	};
     }
     $self->{services} = \%ifaces;
 }
 
-sub _get_debian_ifcfg {
+sub _ip_addr_show {
     my $self = shift;
-    my $interfaces = shift;
-
-    my (%iface_type,%gw,$lastdev);
-    
-    # use /etc/network/interfaces to figure out what kind of
-    # device each is.
-    open my $f,$interfaces or die "$interfaces: $!";
-    while (<$f>) {
-	chomp;
-	if (/^\s*iface\s+(\w+)\s+inet\s+(\w+)/) {
-	    $iface_type{$1} = $2;
-	    $lastdev        = $1;
-	}
-	if (/^\s*gateway\s+(\S+)/ && $lastdev) {
-	    $gw{$lastdev}   = $1;
-	}
-    }
-    close $f;
-    return (\%iface_type,\%gw);
+    return $self->{dummy_data}{"ip_addr_show"};
+    return `ip addr show`;
 }
 
-sub _get_centos_ifcfg {
+sub _ip_route_show {
     my $self = shift;
-    my $interfaces = shift;
-
-    my (%ifcfg,%iface_type,%gw);
-
-    # collect all "ifcfg-* files";
-    opendir my $dh,$interfaces or die "Can't open $interfaces for reading: $!";
-    while (my $entry = readdir($dh)) {
-	next if $entry =~ /^\./;
-	next unless $entry =~ /ifcfg-(?:Auto_)?(\w+)$/;
-	$ifcfg{$entry} = $1;
-    }
-    closedir $dh;
-    for my $entry (keys %ifcfg) {
-	my $file = "$interfaces/$entry";
-	my $dev  = $ifcfg{$entry};
-	my $realdevice;
-	open my $fh,$file or die "$file: $!";
-	while (<$fh>) {
-	    chomp;
-	    if (/^GATEWAY\s*=\s*(\S+)/) {
-		$gw{$dev}=$1;
-	    }
-	    if (/^BOOTPROTO\s*=\s*(\w+)/) {
-		$iface_type{$dev} = $1 eq 'dhcp' ? 'dhcp' : 'static';
-	    }
-	    if (/^DEVICE\s*=\s*(\w+)/) {
-		$realdevice = $1;
-	    }
-	}
-	$iface_type{$dev} = 'ppp' if $dev =~ /^ppp\d+/;  # hack 'cause no other way to figure it out
-	close $fh;
-
-	# I don't know if this can happen in RHL/CentOS, but ifcfg* files can
-	# have a DEVICE entry that may not necessarily match the file name. Arrrgh!
-	if ($realdevice && $realdevice ne $dev) {
-	    $iface_type{$realdevice}=$iface_type{$dev};
-	    $gw{$realdevice}=$gw{$realdevice};
-	    delete $iface_type{$dev};
-	    delete $gw{$dev};
-	}
-
-    }
-
-    return (\%iface_type,\%gw);
-}
-
-=head2 $info = $bal->get_ppp_info($dev)
-
-This nmethod returns a hashref containing information about a PPP
-network interface device, including IP address, gateway, network, and
-netmask. The $dev argument is a standard Linux network device name
-such as "ppp0".
-
-=cut
-
-sub get_ppp_info {
-    my $self     = shift;
-    my $device   = shift;
-    my $ifconfig = $self->_ifconfig($device) or return;
-    my ($ip)     = $ifconfig =~ /inet addr:(\S+)/;
-    my ($peer)   = $ifconfig =~ /P-t-P:(\S+)/;
-    my ($mask)   = $ifconfig =~ /Mask:(\S+)/;
-    my $up       = $ifconfig =~ /^\s+UP\s/m;
-    my $block    = Net::Netmask->new($peer,$mask);
-    return {running  => $up,
-	    dev => $device,
-	    ip  => $ip,
-	    gw  => $peer,
-	    net => "$block",
-	    fwmark => undef,};
-}
-
-=head2 $info = $bal->get_static_info($deb)
-
-This nmethod returns a hashref containing information about a
-statically-defined network interface device, including IP address,
-gateway, network, and netmask. The $dev argument is a standard Linux
-network device name such as "etho0".
-
-=cut
-
-
-sub get_static_info {
-    my $self     = shift;
-    my ($device,$gw) = @_;
-    my $ifconfig = $self->_ifconfig($device) or return;
-    my ($addr)   = $ifconfig =~ /inet addr:(\S+)/;
-    my $up       = $ifconfig =~ /^\s+UP\s/m;
-    my ($mask)   = $ifconfig =~ /Mask:(\S+)/;
-    my $block    = Net::Netmask->new($addr,$mask);
-    return {running  => $up,
-	    dev => $device,
-	    ip  => $addr,
-	    gw  => $gw || $block->nth(1),
-	    net => "$block",
-	    fwmark => undef,};
-}
-
-=head2 $info = $bal->get_dhcp_info($deb)
-
-This nmethod returns a hashref containing information about a network
-interface device that is configured via dhcp, including IP address,
-gateway, network, and netmask. The $dev argument is a standard Linux
-network device name such as "eth0".
-
-=cut
-
-sub get_dhcp_info {
-    my $self     = shift;
-    my $device   = shift;
-    my $fh       = $self->_open_dhclient_leases($device) or die "Can't find lease file for $device";
-    my $ifconfig = $self->_ifconfig($device)             or die "Can't ifconfig $device";
-
-    my ($ip,$gw,$netmask);
-    while (<$fh>) {
-	chomp;
-
-	if (/fixed-address (\S+);/) {
-	    $ip = $1;
-	    next;
-	}
-	
-	if (/option routers (\S+)[,;]/) {
-	    $gw = $1;
-	    next;
-	}
-
-	if (/option subnet-mask (\S+);/) {
-	    $netmask = $1;
-	    next;
-	}
-    }
-
-    die "Couldn't find all required information" 
-	unless defined($ip) && defined($gw) && defined($netmask);
-
-    my $up       = $ifconfig =~ /^\s+UP\s/m;
-    my $block = Net::Netmask->new($ip,$netmask);
-    return {running  => $up,
-	    dev => $device,
-	    ip  => $ip,
-	    gw  => $gw,
-	    net => "$block",
-	    fwmark => undef,
-    };
-}
-
-=head2 $path = $bal->find_dhclient_leases($dev)
-
-This method finds the dhclient configuration file corresponding to
-DHCP-managed device $dev. The device is a standard device name such as
-"eth0".
-
-=cut
-
-sub find_dhclient_leases {
-    my $self     = shift;
-    my $device = shift;
-    my @locations = ('/var/lib/NetworkManager','/var/lib/dhcp','/var/lib/dhclient');
-    for my $l (@locations) {
-	my @matches = glob("$l/dhclient*$device.lease*");
-	next unless @matches;
-	return $matches[0];
-    }
-    return;
-}
-
-sub _open_dhclient_leases {
-    my $self = shift;
-    my $device = shift;
-    if (my $dummy = $self->{dummy_data}{"leases_$device"}) {
-	return IO::String->new($dummy);
-    }
-    my $leases = $self->find_dhclient_leases($device) or die "Can't find lease file for $device";
-    open my $fh,$leases or die "Can't open $leases: $!";
-    return $fh;
+    return $self->{dummy_data}{"ip_route_show"};
+    return `ip route show all`;
 }
 
 sub _ifconfig {
