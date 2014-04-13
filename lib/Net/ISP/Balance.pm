@@ -1144,14 +1144,12 @@ sub _collect_interfaces {
 
 sub _ip_addr_show {
     my $self = shift;
-    return $self->{dummy_data}{"ip_addr_show"};
-    return `ip addr show`;
+    return $self->{dummy_data}{"ip_addr_show"} || `ip addr show`;
 }
 
 sub _ip_route_show {
     my $self = shift;
-    return $self->{dummy_data}{"ip_route_show"};
-    return `ip route show all`;
+    return $self->{dummy_data}{"ip_route_show"} || `ip route show all`;
 }
 
 sub _ifconfig {
