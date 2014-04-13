@@ -1126,12 +1126,13 @@ sub _collect_interfaces {
 	my $running   = $info =~ /[<,]UP[,>]/;
 	my ($addr,$bits)= $info =~ /inet (\d+\.\d+\.\d+\.\d+)(?:\/(\d+))?/;
 	$bits ||= 32;
+	my ($peer)      = $info =~ /peer\s+(\d+\.\d+\.\d+\.\d+)/;
 	my $block       = Net::Netmask->new("$addr/$bits");
 	$ifaces{$svc} = {
 	    dev     => $dev,
 	    running => $running,
-	    gw      => $gws{$dev},
-	    net     => "$block",
+	    gw      => $peer || $gws{$dev},
+	    net     => $peer || "$block",
 	    ip      => $addr,
 	    fwmark  => $role eq 'isp' ? ++$counter : undef,
 	    table   => $role eq 'isp' ?   $counter : undef,
