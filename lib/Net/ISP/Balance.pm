@@ -1098,7 +1098,7 @@ sub _collect_interfaces {
     my %ifs = map {split(/: /,$_,2)} @ifs;
 
     # get existing routes
-    my %gws;
+    my (%gws,%nets);
     my $r    = $self->_ip_route_show;
     my @routes = split /^(?!\s)/m,$r;
     chomp(@routes);
@@ -1106,7 +1106,8 @@ sub _collect_interfaces {
 	while (/(\S+)\s+via\s+(\S+)\s+dev\s+(\w+)/g) {
 	    my ($net,$gateway,$dev) = ($1,$2,$3);
 	    ($net) = /^(\S+)/ if $net eq 'nexthop';
-	    $gws{$dev} = $gateway;
+	    $nets{$dev} = $net;
+	    $gws{$dev}  = $gateway;
 	}
     }
                                
@@ -1131,8 +1132,8 @@ sub _collect_interfaces {
 	$ifaces{$svc} = {
 	    dev     => $dev,
 	    running => $running,
-	    gw      => $peer || $gws{$dev},
-	    net     => $peer || "$block",
+	    gw      => $gws{$dev}  || $peer,
+	    net     => $nets{$dev} || $peer || "$block",
 	    ip      => $addr,
 	    fwmark  => $role eq 'isp' ? ++$counter : undef,
 	    table   => $role eq 'isp' ?   $counter : undef,

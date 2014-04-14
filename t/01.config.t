@@ -8,7 +8,7 @@ use FindBin '$Bin';
 use IO::String;
 use lib $Bin,"$Bin/../lib";
 
-use Test::More tests=>35;
+use Test::More tests=>36;
 
 my $dummy_data = {
     ip_addr_show =><<'EOF',
@@ -69,7 +69,7 @@ ok($bal,"balancer object created");
 
 my $i = $bal->services;
 my @s = sort keys %$i;
-is("@s",'CABLE DSL LAN SUBNET',"four services created");
+is("@s",'CABLE DSL LAN SUBNET VPN',"five services created");
 
 is($i->{DSL}{dev},'ppp0','correct mapping of service to ppp device');
 is($i->{CABLE}{dev},'eth0','correct mapping of service to eth device');
@@ -78,6 +78,7 @@ is($i->{CABLE}{ip},'191.3.88.152','correct mapping of dhcp service to ip');
 is($i->{LAN}{ip},'192.168.10.1','correct mapping of static service to ip');
 is($i->{DSL}{gw},'112.211.154.198','correct mapping of ppp service to gw');
 is($i->{CABLE}{gw},'191.3.88.1','correct mapping of dhcp service to gw');
+is($i->{VPN}{net},'10.8.0.0/24','correct network for VPN device derived from routing table');
 ok(defined($i->{CABLE}{fwmark}),'balanced fwmark defined');
 ok(!defined($i->{LAN}{fwmark}),'non-balanced fwmark undefined');
 is($bal->dev('DSL'),'ppp0','shortcut working');
