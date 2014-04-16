@@ -1106,7 +1106,7 @@ sub _collect_interfaces {
 	while (/(\S+)\s+via\s+(\S+)\s+dev\s+(\w+)/g) {
 	    my ($net,$gateway,$dev) = ($1,$2,$3);
 	    ($net) = /^(\S+)/ if $net eq 'nexthop';
-	    $nets{$dev} = $net;
+	    $nets{$dev} = $net unless $net eq 'default';
 	    $gws{$dev}  = $gateway;
 	}
     }
@@ -1133,7 +1133,7 @@ sub _collect_interfaces {
 	    dev     => $dev,
 	    running => $running,
 	    gw      => $gws{$dev}  || $peer,
-	    net     => $nets{$dev} || $peer || "$block",
+	    net     => $nets{$dev} || ($peer?"$peer/32":undef) || "$block",
 	    ip      => $addr,
 	    fwmark  => $role eq 'isp' ? ++$counter : undef,
 	    table   => $role eq 'isp' ?   $counter : undef,
@@ -1550,8 +1550,8 @@ sub sanity_fw_rules {
 	# allow lan/wan forwarding
 	for my $svc ($self->isp_services) {
 	    my $ispdev = $self->dev($svc);
-	    $self->iptables(["-A FORWARD  -i $dev -o $ispdev -s $net ! -d $net -j ACCEPT",
-			     "-A OUTPUT   -o $ispdev                 ! -d $net -j ACCEPT"]);
+	    $self->iptables("-A FORWARD  -i $dev -o $ispdev -s $net  -j ACCEPT");
+	    $self->iptables("-A OUTPUT   -o $ispdev -j ACCEPT");
 	}
     }
 
