@@ -315,9 +315,9 @@ my %seen_rule;
 sub iptables {
     my $self = shift;
     if (ref $_[0] eq 'ARRAY') {
-	$seen_rule{$_}++ || $self->sh('iptables',$_) foreach @{$_[0]};
+	$seen_rule{$_}++   || $self->sh('iptables',$_) foreach @{$_[0]};
     } else {
-	$seen_rule{"@_"} || $self->sh('iptables',@_)
+	$seen_rule{"@_"}++ || $self->sh('iptables',@_)
     }
 }
 
@@ -731,6 +731,49 @@ sub event {
     return \%state;
 }
 
+=head2 $bal->run_eventd(@args)
+
+Runs scripts in response to lsm events. The scripts are stored in
+directories named after the events, e.g.:
+
+ /etc/network/lsm/up.d/*
+ /etc/network/lsm/down.d/*
+ /etc/network/lsm/long_down.d/*
+
+Scripts are called with the following arguments:
+
+  0. STATE
+  1. SERVICE NAME
+  2. CHECKIP
+  3. DEVICE
+  4. WARN_EMAIL
+  5. REPLIED
+  6. WAITING
+  7. TIMEOUT
+  8. REPLY_LATE
+  9. CONS_RCVD
+ 10. CONS_WAIT
+ 11. CONS_MISS
+ 12. AVG_RTT
+ 13. SRCIP
+ 14. PREVSTATE
+ 15. TIMESTAMP
+
+=cut
+
+sub run_eventd {
+    my $self = shift;
+    my @args = @_;
+    my $state = $args[0];
+    my $dir  = $self->lsm_scripts_dir();
+    my $dird = "$dir/${state}.d";
+    my @files = sort glob("$dird/*");
+    for my $script (@files) {
+	next unless -f $script && -x _;
+	system $script,@args;
+    }    
+}
+
 =head2 @up = $bal->up(@up_services)
 
 Get or set the list of ISP interfaces that are currently active and
@@ -990,7 +1033,8 @@ file.
 Possible switches and their defaults are:
 
     -checkip                    127.0.0.1
-    -eventscript                /etc/network/lsm/balancer_event_script
+    -eventscript                /etc/network/load_balance.pl
+    -long_down_eventscript      /etc/network/load_balance.pl
     -notifyscript               /etc/network/lsm/default_script
     -max_packet_loss            15
     -max_successive_pkts_lost    7
@@ -1001,7 +1045,7 @@ Possible switches and their defaults are:
     -warn_email               root
     -check_arp                   0
     -sourceip                 <autodiscovered>
-    -device                   <autodiscovered>
+    -device                   <autodiscovered>                      -eventscript          => $balance_script,
     -ttl                      0 <use system value>
     -status                   2 <no assumptions>
     -debug                    8 <moderate verbosity from scale of 0 to 100>
@@ -1016,7 +1060,8 @@ sub lsm_config_text {
     my %defaults = (
                       -checkip              => '127.0.0.1',
                       -debug                => 8,
-                      -eventscript          => $balance_script,
+                      -eventscript            => $balance_script,
+                      -long_down_eventscript  => $balance_script,
                       -notifyscript         => "$scripts_dir/default_script",
                       -max_packet_loss      => 15,
                       -max_successive_pkts_lost =>  7,
@@ -1550,8 +1595,8 @@ sub sanity_fw_rules {
 	# allow lan/wan forwarding
 	for my $svc ($self->isp_services) {
 	    my $ispdev = $self->dev($svc);
-	    $self->iptables("-A FORWARD  -i $dev -o $ispdev -s $net  -j ACCEPT");
-	    $self->iptables("-A OUTPUT   -o $ispdev -j ACCEPT");
+	    $self->iptables("-A FORWARD -i $dev -o $ispdev -s $net -j ACCEPT");
+	    $self->iptables("-A OUTPUT -o $ispdev -j ACCEPT");
 	}
     }
 
@@ -1561,8 +1606,8 @@ sub sanity_fw_rules {
 	my $lan1 = $lans[$i];
 	my $lan2 = $lans[$i+1];
 	next unless $lan2;
-	$self->iptables('-A FORWARD -i',$self->dev($lan1),'-o',$self->dev($lan2),'-s',$self->net($lan1),'-j ACCEPT');
-	$self->iptables('-A FORWARD -o',$self->dev($lan1),'-i',$self->dev($lan2),'-s',$self->net($lan2),'-j ACCEPT');
+	$self->iptables('-A FORWARD','-i',$self->dev($lan1),'-o',$self->dev($lan2),'-s',$self->net($lan1),'-d',$self->net($lan2),'-j ACCEPT');
+	$self->iptables('-A FORWARD','-i',$self->dev($lan2),'-o',$self->dev($lan1),'-s',$self->net($lan2),'-d',$self->net($lan1),'-j ACCEPT');
     }
 
     # anything else is bizarre and should be dropped

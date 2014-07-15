@@ -119,7 +119,7 @@ ok($output =~ /iptables -t mangle -A POSTROUTING -o ppp0 -p tcp --tcp-flags SYN,
    'clamp rules correct');
 ok($output =~ m!iptables -A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT!,
    'icmp echo flood rules correct');
-ok($output =~ m[iptables -A FORWARD  -i eth1 -o ppp0 -s 192.168.10.0/24\s+-j ACCEPT],
+ok($output =~ m[iptables -A FORWARD -i eth1 -o ppp0 -s 192.168.10.0/24 -j ACCEPT],
    'forwarding rules correct');
 
 $output = capture(
