@@ -76,9 +76,9 @@ Then edit it to meet your needs. The core of the file looks like this:
 
 <i>/etc/network/balance.conf /etc/sysconfig/network-scripts/balance.conf</i>
 <pre>
- #service    device   role     ping-ip
- CABLE	    eth0     isp      173.194.43.95
- DSL	    eth1     isp      173.194.43.95
+ #service    device   role     ping-ip         weight
+ CABLE	    eth0     isp      173.194.43.95    1
+ DSL	    eth1     isp      173.194.43.95    1
  LAN	    eth2     lan      
 </pre>
 
@@ -96,14 +96,23 @@ these. The script will firewall traffic passing through any of the
 ISPs, and will load balance traffic among them. Traffic can flow
 freely among any of the interfaces marked as belonging to a LAN.
 
-The fourth and last column is the IP address of a host that can be
-periodically pinged to test the integrity of each ISP connection. If
-too many pings failed, the service will be brought down and all
-traffic routed through the remaining ISP(s). The service will continue
-to be monitored and will be brought up when it is once again
-working. Choose a host that is not likely to go offline for reasons
-unrelated to your network connectivity, such as google.com, or the
-ISP's web site.
+The fourth column is the IP address of a host that can be periodically
+pinged to test the integrity of each ISP connection. If too many pings
+failed, the service will be brought down and all traffic routed
+through the remaining ISP(s). The service will continue to be
+monitored and will be brought up when it is once again working. Choose
+a host that is not likely to go offline for reasons unrelated to your
+network connectivity, such as google.com, or the ISP's web site. If
+this column is absent, then the host will default to www.google.ca,
+which is probably not what you want!
+
+The fifth column (optional) is a weight to assign to the service, and
+is only valid for ISP rows. If weights are equal, traffic will be
+apportioned evenly between the two routes. Increase a weight to favor
+one ISP over the others. For example, if "CABLE" has a weight of 2 and
+"DSL" has a weight of 1, then twice as much traffic will flow through
+the CABLE service. If this column is omitted, then equal weights are
+assumed.
 
 <li> (optional) Make edits to the firewall and route rules.
 
