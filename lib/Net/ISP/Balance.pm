@@ -1,14 +1,13 @@
 package Net::ISP::Balance;
 
 use strict;
-use IO::String;
 use Fcntl ':flock';
 use Carp 'croak','carp';
 
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.04';
+our $VERSION    = '1.06';
 
 =head1 NAME
 
@@ -1173,12 +1172,14 @@ sub _collect_interfaces {
 	my ($addr,$bits)= $info =~ /inet (\d+\.\d+\.\d+\.\d+)(?:\/(\d+))?/;
 	$bits ||= 32;
 	my ($peer)      = $info =~ /peer\s+(\d+\.\d+\.\d+\.\d+)/;
-	my $block       = Net::Netmask->new("$addr/$bits");
+	my $block       = Net::Netmask->new2("$addr/$bits") or die $Net::Netmask::error;
+	my $gw          = $gws{$dev}  || $peer                    || $self->_dhcp_gateway($dev) || $block->nth(1);
+	my $net         = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
 	$ifaces{$svc} = {
 	    dev     => $dev,
 	    running => $running,
-	    gw      => $gws{$dev}  || $peer,
-	    net     => $nets{$dev} || ($peer?"$peer/32":undef) || "$block",
+	    gw      => $gw,
+	    net     => $net,
 	    ip      => $addr,
 	    fwmark  => $role eq 'isp' ? ++$counter : undef,
 	    table   => $role eq 'isp' ?   $counter : undef,
@@ -1199,14 +1200,49 @@ sub _ip_route_show {
     return $self->{dummy_data}{"ip_route_show"} || `ip route show all`;
 }
 
-sub _ifconfig {
-    my $self   = shift;
-    my $device = shift;
-    if (my $dummy = $self->{dummy_data}{"ifconfig_$device"}) {
-	return $dummy;
+# This subroutine is called for dhcp-assigned IP addresses to try to
+# get the gateway. It is used for those unusual cases in which the gateway
+# is NOT the first IP address in the net block.
+# In versions 1.05 and older, we tried to recover this information on static
+# interfaces by reading /etc/network/interfaces as well, but the file location was too
+# unpredictable across different Linux distros.
+sub _dhcp_gateway {
+    my $self = shift;
+    my $dev  = shift;
+    my $fh       = $self->_open_dhclient_leases($dev) or return;
+    my ($gw);
+    while (<$fh>) {
+        chomp;
+	$gw = $1 if /option routers (\S+)[,;]/;
     }
-    return `ifconfig $device`;
+    return $gw;
 }
+
+sub _open_dhclient_leases {
+    my $self = shift;
+    my $device = shift;
+    if (my $dummy = $self->{dummy_data}{"leases_$device"}) {
+	open my $fh,'<',\$dummy or die $!;
+        return $fh;
+    }
+    my $leases = $self->_find_dhclient_leases($device) or return;
+    open my $fh,$leases or die "Can't open $leases: $!";
+    return $fh;
+}
+
+sub _find_dhclient_leases {
+    my $self     = shift;
+    my $device = shift;
+    my @locations = ('/var/lib/NetworkManager','/var/lib/dhcp','/var/lib/dhclient');
+    for my $l (@locations) {
+        my @matches = glob("$l/dhclient*$device.lease*");
+        next unless @matches;
+        return $matches[0];
+    }
+    return;
+}
+
+
 
 #################################### here are the routing rules ###################
 

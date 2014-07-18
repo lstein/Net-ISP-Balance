@@ -80,9 +80,9 @@ my $build = $class->new(
     dist_author       => 'Lincoln Stein <lincoln.stein@gmail.com>',
     configure_requires => { 'Module::Build' => 0 },
     requires          => {
-      'Net::Netmask'  => 0,
-      'IO::String'    => 0,
-      'Pod::Usage'    => 0,
+	'perl'        => '5.8.0',
+	'Net::Netmask'  => 0,
+	'Pod::Usage'    => 0,
     },
     );
 

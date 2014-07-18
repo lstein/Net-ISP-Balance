@@ -5,7 +5,6 @@
 
 use strict;
 use FindBin '$Bin';
-use IO::String;
 use lib $Bin,"$Bin/../lib";
 
 use Test::More tests=>36;
@@ -165,9 +164,9 @@ exit 0;
 sub capture {
     my $subroutine = shift;
     my $output = '';
-    tie *FOO,'IO::String',$output;
-    local *STDOUT = \*FOO;
+    open my $fh,'>',\$output or die $!;
+    local *STDOUT = $fh;
     $subroutine->();
-    untie *FOO;
+    close $fh;
     return $output;
 }
