@@ -1,3 +1,7 @@
+1.05    -Delete user-defined chains for the "nat" and "mangle" tables.
+	-Create Net::Netmask objects using the new2() constructor, which returns
+	 undef in cases when the address or mask can't be parsed.
+
 1.04    -Add two new convenience methods: add_route() and force_route().
 	-Add explicit pre-run and post-run scripts.
 

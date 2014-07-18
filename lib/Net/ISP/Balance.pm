@@ -8,7 +8,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.04';
+our $VERSION    = '1.05';
 
 =head1 NAME
 
@@ -1237,7 +1237,7 @@ sub get_ppp_info {
     my ($peer)   = $ifconfig =~ /P-t-P:(\S+)/;
     my ($mask)   = $ifconfig =~ /Mask:(\S+)/;
     my $up       = $ifconfig =~ /^\s+UP\s/m;
-    my $block    = Net::Netmask->new($peer,$mask);
+    my $block    = Net::Netmask->new2($peer,$mask) or die $Net::Netmask::error;
     return {running  => $up,
 	    dev => $device,
 	    ip  => $ip,
@@ -1295,7 +1295,7 @@ sub get_static_info {
     my ($addr)   = $ifconfig =~ /inet addr:(\S+)/;
     my $up       = $ifconfig =~ /^\s+UP\s/m;
     my ($mask)   = $ifconfig =~ /Mask:(\S+)/;
-    my $block    = Net::Netmask->new($addr,$mask);
+    my $block    = Net::Netmask->new2($addr,$mask) or die $Net::Netmask::error;
     return {running  => $up,
 	    dev => $device,
 	    ip  => $addr,
@@ -1343,7 +1343,7 @@ sub get_dhcp_info {
 	unless defined($ip) && defined($gw) && defined($netmask);
 
     my $up       = $ifconfig =~ /^\s+UP\s/m;
-    my $block = Net::Netmask->new($ip,$netmask);
+    my $block = Net::Netmask->new2($ip,$netmask) or die $Net::Netmask::error;
     return {running  => $up,
 	    dev => $device,
 	    ip  => $ip,
@@ -1607,9 +1607,11 @@ sub base_fw_rules {
     my $self = shift;
     $self->sh(<<END);
 iptables -F
-iptables -t nat    -F
-iptables -t mangle -F
 iptables -X
+iptables -t nat    -F
+iptables -t nat    -X
+iptables -t mangle -F
+iptables -t mangle -X
 iptables -P INPUT    DROP
 iptables -P OUTPUT   DROP
 iptables -P FORWARD  DROP
