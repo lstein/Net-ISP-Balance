@@ -1164,7 +1164,7 @@ sub _collect_interfaces {
 
     my %ifaces;
     my $counter = 0;
-    for my $dev (keys %devs) {
+    for my $dev (sort keys %devs) {
 	my $info      = $ifs{$dev} or next;
 	my $svc       = $devs{$dev};
 	my $role      = $s->{$svc}{role};
