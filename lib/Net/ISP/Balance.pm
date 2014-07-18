@@ -1190,6 +1190,7 @@ sub _collect_interfaces {
 	    table   => $role eq 'isp' ?   $counter : undef,
 	    role    => $role,
 	    ping    => $s->{$svc}{ping},
+	    weight  => $s->{$svc}{weight},
 	};
     }
     $self->{services} = \%ifaces;
