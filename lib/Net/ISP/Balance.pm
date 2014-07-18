@@ -1465,9 +1465,11 @@ sub base_fw_rules {
     my $self = shift;
     $self->sh(<<END);
 iptables -F
-iptables -t nat    -F
-iptables -t mangle -F
 iptables -X
+iptables -t nat    -F
+iptables -t nat    -X
+iptables -t mangle -F
+iptables -t mangle -X
 iptables -P INPUT    DROP
 iptables -P OUTPUT   DROP
 iptables -P FORWARD  DROP
