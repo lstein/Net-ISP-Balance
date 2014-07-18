@@ -1071,6 +1071,7 @@ sub lsm_config_text {
                       -min_successive_pkts_rcvd =>  10,
                       -interval_ms              => 1000,
                       -timeout_ms               => 1000,
+	              -long_down_time           => 120,
                       -warn_email               => 'root',
                       -check_arp                =>  0,
                       -sourceip                 => undef,
