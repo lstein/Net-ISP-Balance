@@ -49,6 +49,7 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
     print $bal->fwmark($s);
     print $bal->table($s);
     print $bal->running($s);
+    print $bal->weight($s);
  }
 
 =cut
