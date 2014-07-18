@@ -654,7 +654,7 @@ Return the list of service names defined in balance.conf.
 sub service_names {
     my $self = shift;
     my $s    = $self->services;
-    return keys %$s;
+    return sort keys %$s;
 }
 
 =head2 @names = $bal->isp_services

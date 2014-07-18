@@ -96,16 +96,16 @@ my $output = capture(sub {$bal->enable_forwarding(0);
     );
 
 ok($output =~ m!echo 0 > /proc/sys/net/ipv4/ip_forward!,'correct forwarding setting');
-ok($output=~/ip route add default scope global nexthop via 112.211.154.198 dev ppp0 weight 1 nexthop via 191.3.88.1 dev eth0 weight 1/,
+ok($output=~/ip route add default scope global nexthop via 191.3.88.1 dev eth0 weight 1 nexthop via 112.211.154.198 dev ppp0 weight 1/,
    'correct default route creation');
 ok($output=~m!ip route add table 1 192.168.10.0/24 dev eth1 src 192.168.10.1!,'correct table addition');
 ok($output=~m!echo "01 local routing rules go here"! &&
    $output=~m!echo "02 local routes go here"!,
    'local rule addition');
-ok($output=~m!debug: DSL=>dev=ppp0\ndebug: CABLE=>dev=eth0!,'perl local rules working');
+ok($output=~m!debug: CABLE=>dev=eth0\ndebug: DSL=>dev=ppp0!,'perl local rules working');
 
 $output = capture(sub {$bal->balancing_fw_rules});
-ok($output=~m/iptables -t mangle -A PREROUTING -i eth1 -m conntrack --ctstate NEW -m statistic --mode random --probability 0.5 -j MARK-CABLE/,'balancing firewall rules produce correct mangle');
+ok($output=~m/iptables -t mangle -A PREROUTING -i eth1 -m conntrack --ctstate NEW -m statistic --mode random --probability 0.5 -j MARK-DSL/,'balancing firewall rules produce correct mangle');
 
 $bal->up('CABLE');
 $output = capture(sub {$bal->balancing_fw_rules});
