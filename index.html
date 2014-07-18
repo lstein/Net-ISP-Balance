@@ -133,9 +133,9 @@ DSL modem via interface ppp0.</p>
 corresponds to this network topology:</p>
 
 <pre>
- ##service    device   role     ping-ip
- #CABLE       eth0     isp      173.194.43.95     <b>
- #DSL         ppp0     isp      173.194.43.95     <b>
+ ##service    device   role     ping-ip           weight
+ #CABLE       eth0     isp      173.194.43.95     1<b>
+ #DSL         ppp0     isp      173.194.43.95     1<b>
  #LAN         eth1     lan                        <b>
 </b></b></b></pre>
 
@@ -159,7 +159,18 @@ traffic routed through the remaining ISP(s). The service will continue
 to be monitored and will be brought up when it is once again
 working. Choose a host that is not likely to go offline for reasons
 unrelated to your network connectivity, such as google.com, or the
-ISP's web site.</p>
+ISP's web site. If
+this column is absent, then the host will default to www.google.ca,
+which is probably not what you want!</p>
+
+<p>The <span style="font-weight:bold">fifth column</span> (optional) is a weight to assign to the service, and
+is only valid for ISP rows. If weights are equal, traffic will be
+apportioned evenly between the two routes. Increase a weight to favor
+one ISP over the others. For example, if "CABLE" has a weight of 2 and
+"DSL" has a weight of 1, then twice as much traffic will flow through
+the CABLE service. If this column is omitted, then equal weights are
+assumed.
+
 
 <p>If this package is running on a single Internet-connected host, not a router, then do not include a "lan" line.</p>
 
@@ -540,6 +551,41 @@ How Do I...?</h1>
     </pre>
 
   </dd>
+
+  <dt>...Run custom commands when an ISP goes up or down?</dt>
+
+  <dd>You will find a series of directories in
+    $ETC_NETWORK/balance/lsm named "up.d", "down.d" and "long_down.d".
+    These correspond to ISP state events; any executable scripts found
+    in these directories will be executed when the ISP's state
+    changes. The contents of the "up.d" directory are executed when an
+    ISP goes up, "down.d" will be executed when an ISP goes down, and
+    "long_down.d" will be executed when an ISP remains down for a long
+    time. The long time is determined by the contents of the
+    "long_down_time" option in the balance.conf configuration file.
+    The default is 120 seconds (2 minutes).
+    <p>
+      Each script will be called with a series of 16 arguments describing
+      the event:
+      <ol>
+	<li>the current state
+	<li>the service name
+	<li>the ping IP
+	<li>the network device
+	<li>the email to be notified
+	<li>number of replies to the last set of pings
+	<li>number of waiting pings
+	<li>number of timed out pings
+	<li>number of late pings
+	<li>consecutive packets which received replies
+	<li>consecutive packets waiting for a reply
+	<li>consecutive packets that timed out
+	<li>average round-trip time
+	<li>IP of the device
+	<li>the previous state
+	<li>a timestamp
+      </ol>
+</dd>
 
 </dl>
 
