@@ -229,7 +229,7 @@ my %LSM_STATE = (up              => 'up',
 
 if ((my $state = $LSM_STATE{$ARGV[0]}) && ($SERVICES{my $name = $ARGV[1]})) {
     my $device = $ARGV[3] || $bal->dev($name);
-    syslog('warning',"$name ($device) is now $state. Fixing routing tables");
+    syslog('warning',"$name ($device) is $state.");
     $bal->event($name => $LSM_STATE{$state});
     $bal->run_eventd(@ARGV);
 }

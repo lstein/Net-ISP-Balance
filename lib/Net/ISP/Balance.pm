@@ -768,6 +768,8 @@ sub run_eventd {
     my $dird = "$dir/${state}.d";
     my @files = sort glob("$dird/*");
     for my $script (@files) {
+	next if $script =~ /^#/;
+	next if $script =~ /~$/;
 	next unless -f $script && -x _;
 	system $script,@args;
     }    
@@ -875,11 +877,12 @@ sub dev { shift->_service_field(shift,'dev') }
 sub ip  { shift->_service_field(shift,'ip')  }
 sub gw  { shift->_service_field(shift,'gw')  }
 sub net { shift->_service_field(shift,'net')  }
-sub running { shift->_service_field(shift,'running')  }
-sub role   { shift->_service_field(shift,'role')  }
-sub fwmark { shift->_service_field(shift,'fwmark')  }
-sub table { shift->_service_field(shift,'table')  }
-sub ping   { shift->_service_field(shift,'ping')  }
+sub running  { shift->_service_field(shift,'running')  }
+sub role     { shift->_service_field(shift,'role')  }
+sub fwmark   { shift->_service_field(shift,'fwmark')  }
+sub table    { shift->_service_field(shift,'table')  }
+sub ping     { shift->_service_field(shift,'ping')  }
+sub weight   { shift->_service_field(shift,'weight')  }
 
 sub _service_field {
     my $self = shift;
@@ -1118,13 +1121,14 @@ sub _parse_configuration_file {
 	    $lsm_options{"-${1}"} = $2;
 	    next;
 	}
-	my ($service,$device,$role,$ping_dest) = split /\s+/;
+	my ($service,$device,$role,$ping_dest,$weight) = split /\s+/;
 	next unless $service && $device && $role;
 	croak "load_balance.conf line $.: A service can not be named 'up' or 'down'"
 	    if $service=~/^(up|down)$/;
-	$services{$service}{dev}=$device;
-	$services{$service}{role}=$role;
-	$services{$service}{ping}=$ping_dest;
+	$services{$service}{dev}   = $device;
+	$services{$service}{role}  = $role;
+	$services{$service}{ping}  = $ping_dest  || 'www.google.ca';
+	$services{$service}{weight}= $weight     || 1;
     }
     close $f;
     $self->{svc_config}=\%services;
@@ -1329,9 +1333,10 @@ sub _create_default_route {
 	#                                   nexthop via 192.168.11.1 dev eth1 weight 1
 	my $hops = '';
 	for my $svc (@up) {
-	    my $gw  = $self->gw($svc)  or next;
-	    my $dev = $self->dev($svc) or next;
-	    $hops  .= "nexthop via $gw dev $dev weight 1 ";
+	    my $gw     = $self->gw($svc)     or next;
+	    my $dev    = $self->dev($svc)    or next;
+	    my $weight = $self->weight($svc) or next;
+	    $hops  .= "nexthop via $gw dev $dev weight $weight ";
 	}
 	die "no valid gateways!" unless $hops;
 	$self->ip_route("add default scope global $hops");
@@ -1541,10 +1546,10 @@ END
 	if (@up > 1) {
 	    print STDERR "# creating balanced mangling rules\n" if $self->verbose;
 	    my $count = @up;
-	    my $i = 1;
+	    my $probabilities = $self->_weight_to_probability(\@up);
 	    for my $svc (@up) {
 		my $table       = $self->mark_table($svc);
-		my $probability = 1/$i++; # 1, 1/2, 1/3, 1/4...
+		my $probability = $probabilities->{$svc};
 		$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -j $table");
 	    }
 	}
@@ -1567,6 +1572,28 @@ END
 	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
     }
 
+}
+
+sub _weight_to_probability {
+    my $self = shift;
+    my $svcs = shift;
+
+    # first turn weights into proportions of the total
+    my %weights = map {$_ => $self->weight($_)} @$svcs;
+    my $total   = 0;
+    $total     += $_ foreach (values %weights);
+    my %proportions = map {$_ => $weights{$_}/$total} keys %weights;
+
+    # now turn them into probabilities
+    my %probabilities;
+
+    my $last   = 0;
+    for (sort {$proportions{$a}<=>$proportions{$b} || $a cmp $b} keys %proportions) {
+	my $threshold = $proportions{$_}/(1-$last);
+	$last        += $proportions{$_};
+	$probabilities{$_} = $threshold;
+    }
+    return \%probabilities;
 }
 
 =head2 $bal->sanity_fw_rules()
