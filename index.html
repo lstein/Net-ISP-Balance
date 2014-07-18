@@ -183,9 +183,10 @@ assumed.
 #max_successive_pkts_lost=7
 #min_packet_loss=5
 #min_successive_pkts_rcvd=10
+#long_down_time=120
 </pre>
 
-<p><span style="font-weight:bold">warn_email</span> provides an email address to send notification messages to if the status of a link changes (goes down, or comes back up). You must have the "mail" program installed and configured for this to work. <span style="font-weight:bold">interval_ms</span> indicates how often to check the ping host for each ISP. <span style="font-weight:bold">min_packet_loss</span> and <span style="font-weight:bold">max_packet_loss</span> define the minimum and maximum packet losses required to declare a link up or down. <span style="font-weight:bold">min_successive_pkts_rcvd</span> and <span style="font-weight:bold">max_successive_pkts_recvd</span> define the minimum and maximum numbers of successively-transmitted pings that must be returned in order to declare a link up or down.</p>
+<p><span style="font-weight:bold">warn_email</span> provides an email address to send notification messages to if the status of a link changes (goes down, or comes back up). You must have the "mail" program installed and configured for this to work. <span style="font-weight:bold">interval_ms</span> indicates how often to check the ping host for each ISP. <span style="font-weight:bold">min_packet_loss</span> and <span style="font-weight:bold">max_packet_loss</span> define the minimum and maximum packet losses required to declare a link up or down. <span style="font-weight:bold">min_successive_pkts_rcvd</span> and <span style="font-weight:bold">max_successive_pkts_recvd</span> define the minimum and maximum numbers of successively-transmitted pings that must be returned in order to declare a link up or down. <b>long_down_time</b> is a value in seconds after a service that has gone down is considered to have been down for a long time. You may optionally run a series of shell scripts when this has occurred (see below).</p>
 
 <p></p>
 
