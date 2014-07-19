@@ -1,6 +1,7 @@
-1.06	-Remove dependencies on interface configuration files. Everything figured out using ip route and ip addr.
-	-Assign weights to ISPs for traffic flow preferences.
+1.06	-Assign weights to ISPs in order to apportion traffic unevenly
 	-Allow user to take actions based on lsm events.
+	-Retry interfaces that are not running at time load_balance runs
+	-Remove dependencies on interface configuration files. Everything figured out using ip route and ip addr.
 	
 1.05    -Delete user-defined chains for the "nat" and "mangle" tables.
 	-Create Net::Netmask objects using the new2() constructor, which returns
