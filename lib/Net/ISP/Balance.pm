@@ -98,7 +98,7 @@ sub new {
     },ref $class || $class;
 
     $self->_parse_configuration_file($conf);
-    $self->_collect_interfaces();
+    $self->_collect_interfaces_retry(10);  # try to collect interfaces over 10 seconds
 
     return $self;
 }
@@ -1137,6 +1137,19 @@ sub _parse_configuration_file {
     $self->{lsm_config}=\%lsm_options;
 }
 
+sub _collect_interfaces_retry {
+    my $self    = shift;
+    my $retries = 10;
+    my $ifs;
+    for (1..$retries) {
+	$ifs = eval{$self->_collect_interfaces()};
+	last if $ifs;
+	sleep 1;
+    }
+    croak "Could not get information on all interfaces after $retries s; last error was $@" unless $ifs;
+    $self->{services} = $ifs;
+}
+
 sub _collect_interfaces {
     my $self = shift;
     my $s    = $self->{svc_config} or return;
@@ -1178,7 +1191,7 @@ sub _collect_interfaces {
 	my ($addr,$bits)= $info =~ /inet (\d+\.\d+\.\d+\.\d+)(?:\/(\d+))?/;
 	$bits ||= 32;
 	my ($peer)      = $info =~ /peer\s+(\d+\.\d+\.\d+\.\d+)/;
-	my $block       = Net::Netmask->new2("$addr/$bits") or die $Net::Netmask::error;
+	my $block       = Net::Netmask->new2("$addr/$bits") or die "unable to derive address for $dev: $Net::Netmask::error\nifconfig = \n$info";
 	my $gw          = $gws{$dev}  || $peer                    || $self->_dhcp_gateway($dev) || $block->nth(1);
 	my $net         = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
 	$ifaces{$svc} = {
@@ -1194,7 +1207,7 @@ sub _collect_interfaces {
 	    weight  => $s->{$svc}{weight},
 	};
     }
-    $self->{services} = \%ifaces;
+    return \%ifaces;
 }
 
 sub _ip_addr_show {

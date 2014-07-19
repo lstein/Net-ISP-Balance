@@ -186,6 +186,7 @@ use strict;
 use Net::ISP::Balance;
 use Sys::Syslog;
 use Getopt::Long;
+use Carp 'croak';
 use Pod::Usage 'pod2usage';
 
 my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP);
@@ -205,7 +206,13 @@ if (!$result || $HELP) {
 # command line arguments correspond to the ISP services (defined in the config file)
 # that are "up". LAN services are assumed to be always up.
 
-my $bal = Net::ISP::Balance->new();
+openlog('load_balance.pl','ndelay,pid','local0');
+
+my $bal = eval {Net::ISP::Balance->new()};
+
+fatal_error("Could not initialize balancer; maybe some interfaces are unavailable? Error message=$@")
+    unless $bal;;
+
 $bal->echo_only($DEBUG);
 $bal->verbose($VERBOSE);
 
@@ -213,12 +220,7 @@ $bal->verbose($VERBOSE);
 do_status()   if $STATUS;
 do_kill_lsm() if $KILL;
 
-openlog('load_balance.pl','ndelay,pid','local0');
-unless ($bal->isp_services) {
-    my $msg = "No ISP services appear to be configured. Make sure that balance.conf is correctly set up and that the ISP and LAN-connected interfaces are configured and operational";
-    syslog('crit',$msg);
-    die $msg,"\n";
-}
+fatal_error("No ISP services appear to be configured. Make sure that balance.conf is correctly set up and that the ISP and LAN-connected interfaces are configured and operational") unless $bal->isp_services;
 
 my %SERVICES = map {$_=>1} $bal->isp_services;
 
@@ -304,4 +306,10 @@ sub start_lsm_if_needed {
     # now start the process
     syslog('info',"Starting lsm link monitoring daemon");    
     $bal->start_lsm();
+}
+
+sub fatal_error {
+    my $msg = shift;
+    syslog('crit',$msg);
+    croak $msg,"\n";
 }
