@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.06';
+our $VERSION    = '1.07';
 
 =head1 NAME
 
@@ -768,7 +768,7 @@ sub run_eventd {
     my $dir  = $self->lsm_scripts_dir();
     my $dird = "$dir/${state}.d";
     my @files = sort glob("$dird/*");
-    for my $script (@files) {
+    for my $script (sort @files) {
 	next if $script =~ /^#/;
 	next if $script =~ /~$/;
 	next unless -f $script && -x _;
@@ -967,7 +967,7 @@ Ubuntu/Debian-derived systems, this will be the directory
 
 sub default_lsm_scripts_dir {
     my $self = shift;
-    return $self->install_etc.'/lsm';
+    return $self->install_etc.'/balance/lsm';
 }
 
 =head2 $file = $bal->bal_conf_file([$new_file])
@@ -1038,7 +1038,7 @@ Possible switches and their defaults are:
     -checkip                    127.0.0.1
     -eventscript                /etc/network/load_balance.pl
     -long_down_eventscript      /etc/network/load_balance.pl
-    -notifyscript               /etc/network/lsm/default_script
+    -notifyscript               /etc/network/balance/lsm/default_script
     -max_packet_loss            15
     -max_successive_pkts_lost    7
     -min_packet_loss             5

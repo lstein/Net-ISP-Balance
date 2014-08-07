@@ -17,8 +17,8 @@ use Net::ISP::Balance;
 sub ACTION_clean {
     my $self = shift;
     my $dir  = $self->base_dir();
-    $self->SUPER::ACTION_clean();
     system "cd lsm; make -s clean; cd $dir";
+    $self->SUPER::ACTION_clean();
 }
 
 

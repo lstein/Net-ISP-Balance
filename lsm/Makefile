@@ -3,6 +3,8 @@
 #
 # License: GPLv2
 #
+# Slightly modified by Lincoln Stein <lincoln.stein@gmail.com>
+# for use with Net-ISP-Balance.
 
 VERSION	?= $(lastword $(shell grep ^Version: lsm.spec))
 PROGS	= lsm
@@ -42,16 +44,15 @@ Makefile.depend: *.c *.h Makefile
 	$(CC) -MM *.c > $@
 
 install: lsm
-	mkdir -p ../blib/etc/balance/lsm
-	mkdir -p ../blib/etc/balance/lsm/up.d
-	mkdir -p ../blib/etc/balance/lsm/down.d
-	mkdir -p ../blib/etc/balance/lsm/long_down.d
-	touch ../blib/etc/balance/lsm/up.d/01.upevent
-	touch ../blib/etc/balance/lsm/down.d/01.downevent
-	touch ../blib/etc/balance/lsm/long_down.d/01.long_downevent
-	chmod +x ../blib/etc/balance/lsm/*.d/*
-	mkdir -p ../blib/bin
-	install -m u=rwx,go=x     lsm ../blib/bin/
-	install -m u=rwx,go=r default_script balancer_event_script ../blib/etc/balance/lsm/
+	@mkdir -p ../blib/etc/balance/lsm
+	@for EVENT in up down long_down; do \
+		mkdir -p ../blib/etc/balance/lsm/$$EVENT.d ;\
+		/bin/echo -e "#!/bin/sh\n# The contents of this script are run when the load balancer detects a link $$EVENT event.\n" \
+                      > ../blib/etc/balance/lsm/$$EVENT.d/01.$${EVENT}event ;\
+	done
+	@chmod +x ../blib/etc/balance/lsm/*.d/*
+	@mkdir -p ../blib/bin
+	@install -m u=rwx,go=x     lsm ../blib/bin/
+	@install -m u=rwx,go=r default_script balancer_event_script ../blib/etc/balance/lsm/
 
 -include Makefile.depend

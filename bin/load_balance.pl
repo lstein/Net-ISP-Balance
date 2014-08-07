@@ -231,7 +231,7 @@ my %LSM_STATE = (up              => 'up',
 
 if ((my $state = $LSM_STATE{$ARGV[0]}) && ($SERVICES{my $name = $ARGV[1]})) {
     my $device = $ARGV[3] || $bal->dev($name);
-    syslog('warning',"$name ($device) is $state.");
+    syslog('warning',"$name ($device) is now in state '$state'.");
     $bal->event($name => $LSM_STATE{$state});
     $bal->run_eventd(@ARGV);
 }
@@ -304,7 +304,7 @@ sub start_lsm_if_needed {
     close $fh or die "$lsm_conf: $!";
 
     # now start the process
-    syslog('info',"Starting lsm link monitoring daemon");    
+    syslog('info',"Starting lsm link status monitoring daemon");    
     $bal->start_lsm();
 }
 
