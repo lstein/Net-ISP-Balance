@@ -785,12 +785,12 @@ should be used for balancing.
 
 sub up {
     my $self = shift;
+    $self->{up} = \@_ if @_;
     unless ($self->{up}) { # initialize with running services
 	my @svc = grep {$self->running($_)} $self->isp_services;
 	$self->{up} = \@svc;
     }
     my @up = @{$self->{up}};
-    $self->{up} = \@_ if @_;
     return @up;
 }
 
@@ -1568,7 +1568,7 @@ END
 	    for my $svc (@up) {
 		my $table       = $self->mark_table($svc);
 		my $probability = $probabilities->{$svc};
-		$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -j $table");
+		$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -g $table");
 	    }
 	}
 
