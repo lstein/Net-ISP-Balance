@@ -1568,7 +1568,7 @@ END
 	    for my $svc (@up) {
 		my $table       = $self->mark_table($svc);
 		my $probability = $probabilities->{$svc};
-		$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -j $table");
+		$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -g $table");
 	    }
 	}
 
