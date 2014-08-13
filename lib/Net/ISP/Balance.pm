@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.07';
+our $VERSION    = '1.08';
 
 =head1 NAME
 

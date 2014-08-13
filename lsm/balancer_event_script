@@ -33,4 +33,5 @@ system "/etc/network/load_balance.pl @up";
 
 closelog();
 
+exit 0;
 

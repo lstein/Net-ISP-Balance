@@ -56,6 +56,8 @@ Each command-line option can be abbreviated or used in long-form.
  --verbose, -v   Verbose output. Echo all route and iptables commands
                  to STDERR before executing them.
 
+ --Version, -V   Print version of Net::ISP::Balance.
+
  --status,-s     Print current status of each monitored ISP interface
                  to STDOUT.
 
@@ -185,13 +187,14 @@ License 2.0.
 use strict;
 use Net::ISP::Balance;
 use Sys::Syslog;
-use Getopt::Long;
+use Getopt::Long qw(:config no_ignore_case);
 use Carp 'croak';
 use Pod::Usage 'pod2usage';
 
-my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP);
+my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP,$VERSION);
 my $result = GetOptions('debug' => \$DEBUG,
 			'verbose'=>\$VERBOSE,
+			'Version'=>\$VERSION,
 			'status' => \$STATUS,
 			'kill'   => \$KILL,
 			'help'   => \$HELP,
@@ -200,6 +203,10 @@ if (!$result || $HELP) {
     pod2usage(-message => "Usage: $0",
 	      -exitval => -1,
 	      -verbose => 2);
+    exit 0;
+}
+if ($VERSION) {
+    print $Net::ISP::Balance::VERSION,"\n";
     exit 0;
 }
 
@@ -229,11 +236,13 @@ my %LSM_STATE = (up              => 'up',
 		 long_down       => 'down',
 		 long_down_to_up => 'up');
 
-if ((my $state = $LSM_STATE{$ARGV[0]}) && ($SERVICES{my $name = $ARGV[1]})) {
-    my $device = $ARGV[3] || $bal->dev($name);
-    syslog('warning',"$name ($device) is now in state '$state'.");
-    $bal->event($name => $LSM_STATE{$state});
+if (exists $LSM_STATE{$ARGV[0]}) {
     $bal->run_eventd(@ARGV);
+    if (($SERVICES{my $name = $ARGV[1]})) {
+	my $device = $ARGV[3] || $bal->dev($name);
+	syslog('warning',"$name ($device) is now in state '$ARGV[0]'.");
+	$bal->event($name => $LSM_STATE{$ARGV[0]}) if $LSM_STATE{$ARGV[0]};
+    }
 }
 
 else {
@@ -249,7 +258,7 @@ my @up = $bal->up;
 syslog('info',"ISP services currently marked up: @up");    
 
 # start lsm process if it is not running
-start_lsm_if_needed($bal) unless @ARGV || $DEBUG;
+start_lsm($bal) unless @ARGV || $DEBUG;
 
 $bal->set_routes_and_firewall();
 exit 0;
@@ -277,26 +286,14 @@ sub do_kill_lsm {
     exit 0;
 }
 
-sub start_lsm_if_needed {
+sub start_lsm {
     my $bal = shift;
 
     my $lsm_conf = $bal->lsm_conf_file;
     my $bal_conf = $bal->bal_conf_file;
 
-    my $lsm_running = $bal->signal_lsm(0);
-    
-    if ($lsm_running) {  # check whether the configuration file needs changing
-
-	open my $fh,'<',$lsm_conf or return;
-	my $old_text = '';
-	$old_text .= $_ while <$fh>;
-	close $fh;
-
-	my $new_text = $bal->lsm_config_text();
-	return if $new_text eq $old_text;
-
-	$bal->signal_lsm('TERM');
-    }
+    # kill existing lsm
+    $bal->signal_lsm('TERM');
 
     # Create config file
     open my $fh,'>',$lsm_conf or die "$lsm_conf: $!";

@@ -45,12 +45,6 @@ Makefile.depend: *.c *.h Makefile
 
 install: lsm
 	@mkdir -p ../blib/etc/balance/lsm
-	@for EVENT in up down long_down; do \
-		mkdir -p ../blib/etc/balance/lsm/$$EVENT.d ;\
-		/bin/echo -e "#!/bin/sh\n# The contents of this script are run when the load balancer detects a link $$EVENT event.\n" \
-                      > ../blib/etc/balance/lsm/$$EVENT.d/01.$${EVENT}event ;\
-	done
-	@chmod +x ../blib/etc/balance/lsm/*.d/*
 	@mkdir -p ../blib/bin
 	@install -m u=rwx,go=x     lsm ../blib/bin/
 	@install -m u=rwx,go=r default_script balancer_event_script ../blib/etc/balance/lsm/
