@@ -1,3 +1,10 @@
+1.08
+	-Stability fix: restart lsm every time load_balance.pl invoked. This
+	 avoids correct state not being detected if load_balance.pl called
+	 while an interface is down.
+	-Stability fix: prevent routing tables from being rewritten when
+	 long_down_to_up event occurs (already handled by down_to_up).
+
 1.07    -Bug fix: packets weren't being balanced correctly.
 	-Bug fix: lsm action directories were not being installed in correct place.
 
