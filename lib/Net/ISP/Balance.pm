@@ -1565,10 +1565,10 @@ END
 	    print STDERR "# creating balanced mangling rules\n" if $self->verbose;
 	    my $count = @up;
 	    my $probabilities = $self->_weight_to_probability(\@up);
-	    for my $svc (@up) {
+	    for my $svc (sort {$probabilities->{$b} <=> $probabilities->{$a}} @up) {
 		my $table       = $self->mark_table($svc);
 		my $probability = $probabilities->{$svc};
-		$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -g $table");
+		$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -j $table");
 	    }
 	}
 
