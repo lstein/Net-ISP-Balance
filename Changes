@@ -1,3 +1,6 @@
+1.09    -Fix the way that load balancing marks work so that user code can
+	 again "force" certain connections to go over one ISP or another.
+
 1.08
 	-Stability fix: restart lsm every time load_balance.pl invoked. This
 	 avoids correct state not being detected if load_balance.pl called
