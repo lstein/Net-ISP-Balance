@@ -570,8 +570,9 @@ sub _service_or_device {
 
 =head2 $bal->forward($incoming_port,$destination_host,@protocols)
 
-This method emits appropriate port/host forwarding rules. Destination host can
-accept any of these forms:
+This method emits appropriate port/host forwarding rules using DNAT
+address translation. The destination host can be specified using
+either of these forms:
 
   192.168.100.1       # forward to same port as incoming
   192.168.100.1:8080  # forward to a different port on host
@@ -606,6 +607,43 @@ sub forward {
 		my $syn    = $protocol eq 'tcp' ? '--syn' : '';
 		$self->iptables("-A FORWARD -p $protocol -o $landev $syn -d $dhost --dport $dport -j ACCEPT");
 	    }
+	}
+    }
+}
+
+=head2 $bal->forward_with_snat($incoming_port,$destination_host,@protocols)
+
+This method is the same as forward(), except that it also does source
+NATing from LAN-based requests to make the request appear to have come
+from the router. This is used when you expose a server, such as a web
+server, to the internet, but you also need to access the server from
+machines on the LAN. Use this if you find that the service is visible
+from outside the LAN but not inside the LAN.
+
+Examples:
+
+    $bal->forward_with_snat(80 => '192.168.100.1');
+    $bal->forward_with_snat(80 => '192.168.100.1:8080','tcp');
+
+
+=cut
+
+sub forward_with_snat {
+    my $self = shift;
+    my ($port,$host,@protocols) = @_;    
+
+    @protocols = ('tcp') unless @protocols;
+
+    my ($dhost,$dport)   = split ':',$host;
+    $dhost         ||= $host;
+    $dport         ||= $port;
+
+    $self->forward(@_);
+    for my $lan ($self->lan_services) {
+	my $gw = $self->gw($lan);
+	my $dev= $self->dev($lan);
+	for my $protocol (@protocols) {
+	    $self->iptables("-t nat -A POSTROUTING -i $dev -s $host -p $protocol --dport $port -j SNAT --to-destination $gw");
 	}
     }
 }
