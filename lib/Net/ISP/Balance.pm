@@ -643,7 +643,8 @@ sub forward_with_snat {
 	my $gw = $self->gw($lan);
 	my $dev= $self->dev($lan);
 	for my $protocol (@protocols) {
-	    $self->iptables("-t nat -A POSTROUTING -i $dev -s $host -p $protocol --dport $port -j SNAT --to-destination $gw");
+	    $self->iptables("-t nat -A PREROUTING  -i $dev -p $protocol --dport $port -j DNAT --to-destination $host");
+	    $self->iptables("-t nat -A POSTROUTING -o $dev -d $host -p $protocol --dport $port -j SNAT --to-source $gw");
 	}
     }
 }
