@@ -638,15 +638,21 @@ sub forward_with_snat {
     $dhost         ||= $host;
     $dport         ||= $port;
 
-    $self->forward(@_);
-    for my $lan ($self->lan_services) {
-	my $gw = $self->gw($lan);
-	my $dev= $self->dev($lan);
-	for my $protocol (@protocols) {
-	    $self->iptables("-t nat -A PREROUTING  -i $dev -d $gw   -p $protocol --dport $port -j DNAT --to-destination $host");
-	    $self->iptables("-t nat -A POSTROUTING -o $dev -d $host -p $protocol --dport $port -j SNAT --to-source $gw");
+    for my $protocol (@protocols) {
+	for my $svc ($self->isp_services) {
+	    my $external_ip = $self->ip($svc);
+	    $self->iptables("-t nat -A PREROUTING -d $external_ip -p $protocol --dport $port -j DNAT --to-destination $host");
 	}
+
+	for my $lan ($self->lan_services) {
+	    my $lannet = $self->net($lan);
+	    $self->iptables("-t nat -A POSTROUTING -s $lannet -p $protocol --dport $port -d $host -j MASQUERADE");
+	}
+
+    $self->iptables("-A FORWARD -p $protocol --dport $port -d $host -j ACCEPT");
+
     }
+
 }
 
 =head2 $bal->ip_route(@args)
