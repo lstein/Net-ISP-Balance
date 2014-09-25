@@ -570,8 +570,9 @@ sub _service_or_device {
 
 =head2 $bal->forward($incoming_port,$destination_host,@protocols)
 
-This method emits appropriate port/host forwarding rules. Destination host can
-accept any of these forms:
+This method emits appropriate port/host forwarding rules using DNAT
+address translation. The destination host can be specified using
+either of these forms:
 
   192.168.100.1       # forward to same port as incoming
   192.168.100.1:8080  # forward to a different port on host
@@ -608,6 +609,50 @@ sub forward {
 	    }
 	}
     }
+}
+
+=head2 $bal->forward_with_snat($incoming_port,$destination_host,@protocols)
+
+This method is the same as forward(), except that it also does source
+NATing from LAN-based requests to make the request appear to have come
+from the router. This is used when you expose a server, such as a web
+server, to the internet, but you also need to access the server from
+machines on the LAN. Use this if you find that the service is visible
+from outside the LAN but not inside the LAN.
+
+Examples:
+
+    $bal->forward_with_snat(80 => '192.168.100.1');
+    $bal->forward_with_snat(80 => '192.168.100.1:8080','tcp');
+
+
+=cut
+
+sub forward_with_snat {
+    my $self = shift;
+    my ($port,$host,@protocols) = @_;    
+
+    @protocols = ('tcp') unless @protocols;
+
+    my ($dhost,$dport)   = split ':',$host;
+    $dhost         ||= $host;
+    $dport         ||= $port;
+
+    for my $protocol (@protocols) {
+	for my $svc ($self->isp_services) {
+	    my $external_ip = $self->ip($svc);
+	    $self->iptables("-t nat -A PREROUTING -d $external_ip -p $protocol --dport $port -j DNAT --to-destination $host");
+	}
+
+	for my $lan ($self->lan_services) {
+	    my $lannet = $self->net($lan);
+	    $self->iptables("-t nat -A POSTROUTING -s $lannet -p $protocol --dport $port -d $host -j MASQUERADE");
+	}
+
+    $self->iptables("-A FORWARD -p $protocol --dport $port -d $host -j ACCEPT");
+
+    }
+
 }
 
 =head2 $bal->ip_route(@args)
