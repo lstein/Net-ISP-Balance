@@ -476,6 +476,36 @@ How Do I...?</h1>
     </pre>
   </dd>
 
+  <dt>...Reconfigure load_balance for interface(s) whose IP addresses
+    change periodically.
+
+  <dd>This can be an issue with network interfaces whose IP addresses
+  are set by DHCP, as well as with PPP connections that reset
+  periodically. When the IP address changes, load_balance will detect
+  that the interface can no longer be used for outbound pings, but
+  will not reset the firewall rules to accomodate the new IP
+  address. This can be fixed with the addition of simple scripts that
+  invoke load_balance.pl when the interface changes:
+    <p>
+  For <b>DHCP interfaces</b>, put the following script
+  into /etc/dhcp/dhclient-exit-hooks.d:
+  <pre>
+    #!/bin/sh
+    case $reason in
+         BOUND|RENEW|REBIND|REBOOT|EXPIRE|FAIL|RELEASE|STOP)
+             /etc/network/load_balance.pl
+             ;;
+    esac
+  </pre>
+    <p>
+  For <b>PPP</b> and <b>PPPOE interfaces</b>, put the following
+  executable script into /etc/ppp/ip-up.d:
+  <pre>
+    #!/bin/sh
+    /etc/network/load_balance.pl
+  </pre>
+  </dd>
+
   <dt>...Allow machines on the LAN to access the control interface of
   a cable and/or DSL modem attached to the router?</dt>
   <dd>Cable and DSL modems usually provide a web-based control interface
