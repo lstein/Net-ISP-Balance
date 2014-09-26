@@ -38,12 +38,6 @@ sub ACTION_install {
     system "chmod u+w $install_etc/balance/routes/*";
     system "chmod u+w $install_etc/balance/pre-run/*";
     system "chmod u+w $install_etc/balance/post-run/*";
-
-    if (my $path = Net::ISP::Balance->install_ppp) {
-	system "chmod +x $path/ip-up.d/load_balance";
-	system "chmod +x $path/ip-down.d/load_balance";
-    }
-
 }
 
 sub process_lsm_files {
@@ -76,26 +70,6 @@ sub process_etc_files {
 	);
 }
 
-sub process_ppp_files {
-    my $self = shift;
-    find({no_chdir=>1,
-	  wanted => sub { return unless -f $File::Find::name;
-			  my $bn = basename($_);
-			  return if $bn =~ /~$/ || $bn =~ /^#/;
-			  (my $strip = $File::Find::name) =~ s!^\./ppp/!!;
-			  my $install_ppp = Net::ISP::Balance->install_ppp;
-			  if (-e "$install_ppp/$strip") {
-			      print STDERR "skip $install_ppp/$strip: already installed\n";
-			      unlink "./blib/$File::Find::name";
-			      return;
-			  }
-			  $self->copy_if_modified(from => $File::Find::name,
-						  to_dir => './blib');
-	  }},
-	 './ppp'
-	);
-}
-
 EOF
 
 my $build = $class->new(
@@ -113,12 +87,9 @@ my $build = $class->new(
     );
 
 my $install_etc = Net::ISP::Balance->install_etc;
-my $install_ppp = Net::ISP::Balance->install_ppp;
 $build->add_build_element('etc');
-$build->add_build_element('ppp');
 $build->add_build_element('lsm');
 $build->install_path('etc'       => $install_etc);
-$build->install_path('ppp'       => $install_ppp);
 $build->config_data('lsm_path'=>$build->install_destination('script').'/lsm');
 $build->create_build_script;
 exit 0;

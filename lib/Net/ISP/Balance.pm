@@ -959,19 +959,6 @@ sub install_etc {
     return '/etc';
 }
 
-=head2 $path = Net::ISP::Balance->install_ppp
-
-Returns the path to where pppd configuration files reside on this
-system, e.g. /etc/ppp.
-
-=cut
-
-sub install_ppp {
-    my $self = shift;
-    return '/etc/ppp'                    if -d '/etc/ppp';
-    return;
-}
-
 =head2 $file = Net::ISP::Balance->default_conf_file
 
 Returns the path to the default configuration file,
