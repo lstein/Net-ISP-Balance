@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.06';
+our $VERSION    = '1.07';
 
 =head1 NAME
 
@@ -1145,7 +1145,11 @@ sub _collect_interfaces {
     my $a    = $self->_ip_addr_show;
     my (undef,@ifs)  = split /^\d+: /m,$a;
     chomp(@ifs);
-    my %ifs = map {split(/: /,$_,2)} @ifs;
+    my %ifs = map {
+	my ($dev,$config) = split(/: /,$_,2);
+	$dev =~ s/\@.+$//;  # get rid of bonding master information
+	($dev,$config);
+    } @ifs;
 
     # get existing routes
     my (%gws,%nets);

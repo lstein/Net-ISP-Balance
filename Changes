@@ -1,3 +1,5 @@
+1.07    -Adjust interface parsing rules to recognize bonded vlan interfaces.
+
 1.06	-Remove dependencies on interface configuration files. Everything figured out using ip route and ip addr.
 	-Assign weights to ISPs for traffic flow preferences.
 	-Allow user to take actions based on lsm events.
