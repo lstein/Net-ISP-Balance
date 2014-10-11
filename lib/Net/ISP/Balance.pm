@@ -1236,7 +1236,8 @@ sub _collect_interfaces {
 	my ($addr,$bits)= $info =~ /inet (\d+\.\d+\.\d+\.\d+)(?:\/(\d+))?/;
 	$bits ||= 32;
 	my ($peer)      = $info =~ /peer\s+(\d+\.\d+\.\d+\.\d+)/;
-	my $block       = Net::Netmask->new2("$addr/$bits") or die "unable to derive address for $dev: $Net::Netmask::error\nifconfig = \n$info";
+	my $block       = Net::Netmask->new2("$addr/$bits") 
+	    or die "unable to derive address for $dev: $Net::Netmask::error\nifconfig = \n$info";
 	my $gw          = $gws{$dev}  || $peer                    || $self->_dhcp_gateway($dev) || $block->nth(1);
 	my $net         = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
 	$ifaces{$svc} = {
