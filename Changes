@@ -1,3 +1,6 @@
+
+1.10	-Adjust interface parsing rules to recognize bonded vlan interfaces.
+
 1.09    -Fix the way that load balancing marks work so that user code can
 	 again "force" certain connections to go over one ISP or another.
 
@@ -12,6 +15,9 @@
 	-Bug fix: lsm action directories were not being installed in correct place.
 
 1.06	-You can now assign weights to each of the ISPs in order to prefer one over the ohter
+
+1.06	-Remove dependencies on interface configuration files. Everything figured out using ip route and ip addr.
+	-Assign weights to ISPs for traffic flow preferences.
 	-Allow user to take actions based on lsm events.
 	-Retry interfaces that are not running at time load_balance runs
 	-Remove dependencies on interface configuration files. Everything figured out using ip route and ip addr.
