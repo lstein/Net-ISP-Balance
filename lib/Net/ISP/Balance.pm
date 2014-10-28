@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.10';
+our $VERSION    = '1.11';
 
 =head1 NAME
 
@@ -1713,15 +1713,6 @@ sub sanity_fw_rules {
 	# any outgoing udp packet is fine with me
 	$self->iptables("-A OUTPUT  -p udp -s $net -j ACCEPT");
 
-# These lines are now contained in 02.forwardings.pl
-#	# allow domain and time services
-#	$self->iptables(['-A INPUT   -p udp --source-port domain -j ACCEPT',
-#			 "-A FORWARD -p udp --source-port domain -d $net -j ACCEPT"]);
-#
-#	# time
-#	$self->iptables(['-A INPUT   -p udp --source-port ntp -j ACCEPT',
-#			 "-A FORWARD -p udp --source-port ntp -d $net -j ACCEPT"]);
-
 	# lan/wan forwarding
 	# allow lan/wan forwarding
 	for my $svc ($self->isp_services) {
@@ -1731,14 +1722,17 @@ sub sanity_fw_rules {
 	}
     }
 
-    # allow forwarding between lans
+    # Allow forwarding between lans
+    # This generates a very long list of rules if you have multiple lan services, but I think
+    # it is the most general way to get this right.
     my @lans = $self->lan_services;
-    for (my $i=0;$i<@lans;$i++) {
-	my $lan1 = $lans[$i];
-	my $lan2 = $lans[$i+1];
-	next unless $lan2;
-	$self->iptables('-A FORWARD','-i',$self->dev($lan1),'-o',$self->dev($lan2),'-s',$self->net($lan1),'-d',$self->net($lan2),'-j ACCEPT');
-	$self->iptables('-A FORWARD','-i',$self->dev($lan2),'-o',$self->dev($lan1),'-s',$self->net($lan2),'-d',$self->net($lan1),'-j ACCEPT');
+    for (my $i=0;$i<@lans-1;$i++) {
+	for (my $j=0;$j<@lans;$j++) {
+	    next if $i == $j;
+	    my $lan1 = $lans[$i];
+	    my $lan2 = $lans[$j];
+	    $self->iptables('-A FORWARD','-i',$self->dev($lan1),'-o',$self->dev($lan2),'-s',$self->net($lan1),'-d',$self->net($lan2),'-j ACCEPT');
+	}
     }
 
     # anything else is bizarre and should be dropped

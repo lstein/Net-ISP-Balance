@@ -1,3 +1,4 @@
+1.11    -Fix inter-LAN forwarding when more than 1 LAN is defined.
 
 1.10	-Adjust interface parsing rules to recognize bonded vlan interfaces.
 
