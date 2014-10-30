@@ -172,11 +172,15 @@ the CABLE service. If this column is omitted, then equal weights are
 assumed.
 
 
-<p>If this package is running on a single Internet-connected host, not a router, then do not include a "lan" line.</p>
+<p>If this package is running on a single Internet-connected host, not
+a router, then do not include a "lan" line.</p>
 
-<p>There are additional configuration options related to how often the link status is monitored. You may wish to uncomment and adjust these as well:</p>
+<p>There are additional configuration options related to fine control
+of packet forwarding as well as link status monitoring. You
+may wish to uncomment and adjust these as well:</p>
 
 <pre>
+#forwarding_group=:lan :isp
 #warn_email=root@localhost
 #interval_ms=1000
 #max_packet_loss=15
@@ -186,9 +190,57 @@ assumed.
 #long_down_time=120
 </pre>
 
-<p><span style="font-weight:bold">warn_email</span> provides an email address to send notification messages to if the status of a link changes (goes down, or comes back up). You must have the "mail" program installed and configured for this to work. <span style="font-weight:bold">interval_ms</span> indicates how often to check the ping host for each ISP. <span style="font-weight:bold">min_packet_loss</span> and <span style="font-weight:bold">max_packet_loss</span> define the minimum and maximum packet losses required to declare a link up or down. <span style="font-weight:bold">min_successive_pkts_rcvd</span> and <span style="font-weight:bold">max_successive_pkts_recvd</span> define the minimum and maximum numbers of successively-transmitted pings that must be returned in order to declare a link up or down. <span style="font-weight:bold">long_down_time</span> is a value in seconds after a service that has gone down is considered to have been down for a long time. You may optionally run a series of shell scripts when this has occurred (see below).</p>
+<dl>
+  <dt><span style="font-weight:bold">forwarding_group</span></dt>
+  <dd>
+    <div>
+    The <span style="font-weight:bold">forwarding_group</span> configuration option defines a set of services
+    that the router is allowed to forward packets among. Provide a
+    space-delimited set of service names. ":isp" is an abbreviation for
+    all ISP services, while ":lan" is an abbreviation for all LAN
+    services. So for example, this configuraiton will allow forwarding of
+    packets between LAN1, LAN2, LAN3 and both ISPs, while LAN3 is granted
+    access to both ISPs but can't send packets to the other LAN
+    interfaces:
+    </div>
 
-<p></p>
+    <pre>
+      forwarding_group=LAN1 LAN2 LAN3 :isp forwarding_group=LAN4 :isp
+    </pre>
+
+    <div>
+      If no forwarding_group options are defined, then the router will
+      forward packets among all LANs and ISP interfaces. It is equivalent to
+      this:
+    </div>
+
+    <pre>
+      forwarding_group=:lan :isp
+    </pre>
+</dd>
+  
+  <dt><span style="font-weight:bold">warn_email</span></dt>
+  <dd>Provides an email address to send notification messages to if
+  the status of a link changes (goes down, or comes back up). You must
+  have the "mail" program installed and configured for this to work.</dd>
+
+  <dt><span style="font-weight:bold">interval_ms</span></dt>
+  <dd>Indicates how often to check the ping host for each ISP.</dd>
+
+  <dt><span style="font-weight:bold">min_packet_loss</span><dt>
+  <dt><span style="font-weight:bold">max_packet_loss</span></dt>
+  <dd>These define the minimum and maximum packet losses required to declare a link up or down.</dd>
+
+  <dt><span style="font-weight:bold">min_successive_pkts_rcvd</span></dt>
+  <dt><span style="font-weight:bold">max_successive_pkts_recvd</span></dt>
+  <dd>These define the minimum and maximum numbers of
+  successively-transmitted pings that must be returned in order to
+  declare a link up or down.</dd>
+  
+  <dt><span style="font-weight:bold">long_down_time</span></dt>
+  <dd>This is a value in seconds after a service that has gone down is considered to have been down for a long time. You may optionally run a series of shell scripts when this has occurred (see below).</dd>
+
+</dl>
 
 <h2>4. Make edits to the firewall and route rules (optional)</h2>
 
