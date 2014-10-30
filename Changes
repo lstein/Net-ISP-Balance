@@ -1,4 +1,8 @@
 1.11    -Fix inter-LAN forwarding when more than 1 LAN is defined.
+	-Add ability to control whether packets are forwarded freely
+	 among LAN and ISP interfaces or are restricted to certain
+	 groups of mutually forwarding interfaces using the
+	 forward_group configuration file option.
 
 1.10	-Adjust interface parsing rules to recognize bonded vlan interfaces.
 

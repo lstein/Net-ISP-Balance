@@ -64,6 +64,109 @@ load_balance.pl script can be found in the bin subdirectory of this
 distribution. Installation and configuration instructions can be found
 at http://lstein.github.io/Net-ISP-Balance/.
 
+=head1 CONFIGURATION FILE
+
+This module reads a configuration file with the following format:
+
+ #service    device   role     ping-ip           weight
+ CABLE        eth0     isp      173.194.43.95     1
+ DSL          ppp0     isp      173.194.43.95     1
+ LAN1         eth1     lan                        
+ LAN2         eth2     lan                        
+ LAN3         eth3     lan                        
+
+
+The first column is a service name that is used to bring up or down
+the needed routes and firewall rules.
+
+The second column is the name of the network interface device that
+connects to that service.
+
+The third column is either "isp" or "lan". There may be any number of
+these. The script will firewall traffic passing through any of the
+ISPs, and will load balance traffic among them. Traffic can flow
+freely among any of the interfaces marked as belonging to a LAN.
+
+The fourth column is the IP address of a host that can be periodically
+pinged to test the integrity of each ISP connection. If too many pings
+failed, the service will be brought down and all traffic routed
+through the remaining ISP(s). The service will continue to be
+monitored and will be brought up when it is once again working. Choose
+a host that is not likely to go offline for reasons unrelated to your
+network connectivity, such as google.com, or the ISP's web site. If
+this column is absent, then the host will default to www.google.ca,
+which is probably not what you want!
+
+The fifth column (optional) is a weight to assign to the service, and
+is only valid for ISP rows. If weights are equal, traffic will be
+apportioned evenly between the two routes. Increase a weight to favor
+one ISP over the others. For example, if "CABLE" has a weight of 2 and
+"DSL" has a weight of 1, then twice as much traffic will flow through
+the CABLE service. If this column is omitted, then equal weights are
+assumed.
+
+If this package is running on a single Internet-connected host, not a
+router, then do not include a "lan" line.
+
+In addition to the main table, there are several configuration options
+that follow the format "configuration_name=value":
+
+=over 4
+
+=item forwarding_group=<space-delimited list of services>
+
+The forwarding_group configuration option defines a set of services
+that the router is allowed to forward packets among. Provide a
+space-delimited set of service names. ":isp" is an abbreviation for
+all ISP services, while ":lan" is an abbreviation for all LAN
+services. So for example, this configuraiton will allow forwarding of
+packets between LAN1, LAN2, LAN3 and both ISPs, while LAN3 is granted
+access to both ISPs but can't send packets to the other LAN
+interfaces:
+
+ forwarding_group=LAN1 LAN2 LAN3 :isp
+ forwarding_group=LAN4 :isp
+
+If no forwarding_group options are defined, then the router will
+forward packets among all LANs and ISP interfaces. It is equivalent to
+this:
+
+ forwarding_group=:lan :isp
+
+=item warn_email=<email address>
+
+Warn_email provides an email address to send notification messages to
+if the status of a link changes (goes down, or comes back up). You
+must have the "mail" program installed and configured for this to
+work. 
+
+=item interval_ms=<integer>
+
+Indicates how often to check the ping host for each ISP. 
+
+=item min_packet_loss=<integer>
+
+=item max_packet_loss=<integer>
+
+These define the minimum and maximum packet losses required to declare
+a link up or down. 
+
+=item min_successive_pkts_rcvd=<integer>
+
+=item max_successive_pkts_recvd=<integer>
+
+These define the minimum and maximum numbers of
+successively-transmitted pings that must be returned in order to
+declare a link up or down. 
+
+=item long_down_time=<integer>
+
+This is a value in seconds after a service that has gone down is
+considered to have been down for a long time. You may optionally run a
+series of shell scripts when this has occurred (see below).
+
+=back
+
 =head1 FREQUENTLY-USED METHODS
 
 Here are the class methods for this module that can be called on the
@@ -1159,11 +1262,17 @@ sub lsm_config_text {
 sub _parse_configuration_file {
     my $self = shift;
     my $path = shift;
-    my (%services,%lsm_options);
+    my (%services,%lsm_options,@forwarding_group);
     open my $f,$path or die "Could not open $path: $!";
+
     while (<$f>) {
 	chomp;
 	next if /^\s*#/;
+	if (/^forwarding_group\s*=\s*(.+)$/) { # routing group
+	    my @group = split /\s+/,$1 or next;
+	    push @forwarding_group,\@group;
+	    next;
+	}
 	if (/^(\w+)\s*=\s*(.*)$/) { # lsm config
 	    $lsm_options{"-${1}"} = $2;
 	    next;
@@ -1178,8 +1287,9 @@ sub _parse_configuration_file {
 	$services{$service}{weight}= $weight     || 1;
     }
     close $f;
-    $self->{svc_config}=\%services;
-    $self->{lsm_config}=\%lsm_options;
+    $self->{svc_config}        = \%services;
+    $self->{lsm_config}        = \%lsm_options;
+    $self->{forwarding_groups} = \@forwarding_group;
 }
 
 sub _collect_interfaces_retry {
@@ -1538,6 +1648,10 @@ iptables -P INPUT    DROP
 iptables -P OUTPUT   DROP
 iptables -P FORWARD  DROP
 
+iptables -N REJECTPERM
+iptables -A REJECTPERM -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "REJECTED: "
+iptables -A REJECTPERM -j REJECT --reject-with icmp-net-unreachable
+
 iptables -N DROPGEN
 iptables -A DROPGEN -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "GENERAL: "
 iptables -A DROPGEN -j DROP
@@ -1698,45 +1812,111 @@ sub sanity_fw_rules {
     $self->iptables(['-A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT',
 		     '-A INPUT -p icmp --icmp-type echo-request -j DROPFLOOD']);
 
-    # establish expected traffic patterns between lan(s) and other interfaces
-    for my $lan ($self->lan_services) {
+    # allowable traffic patterns within the LAN services
+   for my $lan ($self->lan_services) {
 	my $dev = $self->dev($lan);
 	my $net = $self->net($lan);
+
 	# allow unlimited traffic from internal network using legit address	
 	$self->iptables("-A INPUT   -i $dev -s $net -j ACCEPT");
 
 	# allow locally-generated output to the LAN on the LANDEV
 	$self->iptables("-A OUTPUT  -o $dev -d $net  -j ACCEPT");
+
 	# and allow broadcasts to the lan
 	$self->iptables("-A OUTPUT  -o $dev -d 255.255.255.255/32  -j ACCEPT");
 
 	# any outgoing udp packet is fine with me
 	$self->iptables("-A OUTPUT  -p udp -s $net -j ACCEPT");
+   }
+
+    # allow appropriate outgoing traffic via the ISPs
+    for my $svc ($self->isp_services) {
+	my $ispdev = $self->dev($svc);
+	$self->iptables("-A OUTPUT -o $ispdev -j ACCEPT");
+    }
+
+    # forwarding rules
+    $self->_lan_wan_forwarding_rules();
+    $self->_lan_lan_forwarding_rules();
+
+    # anything else is bizarre and should be dropped
+    $self->iptables('-A OUTPUT  -j DROPSPOOF');
+}
+
+# establish expected traffic patterns between lan(s) and isp interfaces
+sub _lan_wan_forwarding_rules {
+    my $self = shift;
+
+    for my $lan ($self->lan_services) {
+	my $dev = $self->dev($lan);
+	my $net = $self->net($lan);
 
 	# lan/wan forwarding
 	# allow lan/wan forwarding
 	for my $svc ($self->isp_services) {
 	    my $ispdev = $self->dev($svc);
-	    $self->iptables("-A FORWARD -i $dev -o $ispdev -s $net -j ACCEPT");
-	    $self->iptables("-A OUTPUT -o $ispdev -j ACCEPT");
+	    my $target = $self->_allow_forwarding($lan,$svc) ? 'ACCEPT' : 'REJECTPERM';
+	    $self->iptables("-A FORWARD -i $dev -o $ispdev -s $net -j $target");
 	}
     }
+}
 
-    # Allow forwarding between lans
+# Allow forwarding between lans
+sub _lan_lan_forwarding_rules {
+    my $self = shift;
+
     # This generates a very long list of rules if you have multiple lan services, but I think
     # it is the most general way to get this right.
     my @lans = $self->lan_services;
-    for (my $i=0;$i<@lans-1;$i++) {
+    for (my $i=0;$i<@lans;$i++) {
 	for (my $j=0;$j<@lans;$j++) {
 	    next if $i == $j;
 	    my $lan1 = $lans[$i];
 	    my $lan2 = $lans[$j];
-	    $self->iptables('-A FORWARD','-i',$self->dev($lan1),'-o',$self->dev($lan2),'-s',$self->net($lan1),'-d',$self->net($lan2),'-j ACCEPT');
+	    my $target = $self->_allow_forwarding($lan1,$lan2) ? 'ACCEPT' : 'REJECTPERM';
+	    $self->iptables('-A FORWARD','-i',$self->dev($lan1),'-o',$self->dev($lan2),'-s',$self->net($lan1),'-d',$self->net($lan2),"-j $target");
 	}
     }
+}
 
-    # anything else is bizarre and should be dropped
-    $self->iptables('-A OUTPUT  -j DROPSPOOF');
+sub _allow_forwarding {
+    my $self = shift;
+    my ($net_a,$net_b) = @_;
+    my $forward = $self->_forwarding_groups();
+    my $key     = join ',',sort ($net_a,$net_b);
+    return $forward->{$key};
+}
+
+# this returns a hashref of service pairs that are allowed to forward packets.
+# the keys are service name pairs, in alphabetic order, separated by a comma.
+sub _forwarding_groups {
+    my $self = shift;
+
+    # _forwarding_groups is the processed and normalized version of forwarding_groups
+    return $self->{_forwarding_groups} if exists $self->{_forwarding_groups};
+
+    my %allowed_pairs;
+    my $fgs = $self->{forwarding_groups};
+    unless (@$fgs) {
+	$fgs = [[':isp',':lan']];
+    }
+
+    for my $fg (@$fgs) {
+	my @services = map { 
+	     /^:isp$/ ? $self->isp_services
+	   : /^:lan$/ ? $self->lan_services
+           : $_
+	} @$fg;
+
+	for (my $i=0;$i<@services-1;$i++) {
+	    for (my $j=$i;$j<@services;$j++) {
+		my $key = join ',',sort ($services[$i],$services[$j]);
+		$allowed_pairs{$key}++;
+	    }
+	}
+    }
+    return $self->{_forwarding_groups} = \%allowed_pairs;
 }
 
 =head2 $bal->nat_fw_rules()
