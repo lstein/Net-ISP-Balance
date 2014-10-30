@@ -117,12 +117,13 @@ that follow the format "configuration_name=value":
 
 The forwarding_group configuration option defines a set of services
 that the router is allowed to forward packets among. Provide a
-space-delimited set of service names. ":isp" is an abbreviation for
-all ISP services, while ":lan" is an abbreviation for all LAN
-services. So for example, this configuraiton will allow forwarding of
-packets between LAN1, LAN2, LAN3 and both ISPs, while LAN3 is granted
-access to both ISPs but can't send packets to the other LAN
-interfaces:
+space-delimited set of service names or one or more of the
+abbreviations ":isp" and ":lan".  ":isp" is an abbreviation for all
+ISP services, while ":lan" is an abbreviation for all LAN services. So
+for example, the two configuration lines below will allow forwarding
+of packets between LAN1, LAN2, LAN3 and both ISPs. LAN4 will be
+granted access to both ISPs but won't be able to exchange packets with
+LANs 1 through 3:
 
  forwarding_group=LAN1 LAN2 LAN3 :isp
  forwarding_group=LAN4 :isp
