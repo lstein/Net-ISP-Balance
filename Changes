@@ -1,3 +1,6 @@
+1.12    -Add locking to load_balance.pl script to avoid conditions in
+         which multiple instances of the script is running.
+
 1.11    -Fix inter-LAN forwarding when more than 1 LAN is defined.
 	-Add ability to control whether packets are forwarded freely
 	 among LAN and ISP interfaces or are restricted to certain
