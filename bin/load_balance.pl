@@ -187,9 +187,12 @@ License 2.0.
 use strict;
 use Net::ISP::Balance;
 use Sys::Syslog;
+use Fcntl ':flock';
+use File::Spec;
 use Getopt::Long qw(:config no_ignore_case);
 use Carp 'croak';
 use Pod::Usage 'pod2usage';
+use constant LOCK_TIMEOUT => 30;  # if two processes running simultaneously, length of time second will wait for first
 
 my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP,$VERSION);
 my $result = GetOptions('debug' => \$DEBUG,
@@ -209,6 +212,9 @@ if ($VERSION) {
     print $Net::ISP::Balance::VERSION,"\n";
     exit 0;
 }
+
+my $lock_fh = do_lock();
+END { do_unlock($lock_fh); }
 
 # command line arguments correspond to the ISP services (defined in the config file)
 # that are "up". LAN services are assumed to be always up.
@@ -309,4 +315,32 @@ sub fatal_error {
     my $msg = shift;
     syslog('crit',$msg);
     croak $msg,"\n";
+}
+
+sub do_lock {
+    my $lockfile = File::Spec->catfile(File::Spec->tmpdir,
+				       "load_balance.$>.lock");
+    open (my $fh,'>>',$lockfile) or fatal_error("Can't open $lockfile for locking");
+    eval {
+	local $SIG{ALRM} = sub { die "timeout" };
+	alarm(LOCK_TIMEOUT);
+	flock($fh,LOCK_EX)            or fatal_error("Can't lock $lockfile");
+	alarm(0);
+    };
+    fatal_error("Lock timed out") if $@ =~ /timeout/;
+    return $fh;
+}
+
+
+sub do_unlock {
+    my $fh = shift;
+    return unless $fh;
+    flock($fh,LOCK_UN);
+    my $lockfile = get_lockfile();
+    unlink $lockfile;
+}
+
+sub get_lockfile {
+    return File::Spec->catfile(File::Spec->tmpdir,
+			       "load_balance.$>.lock");
 }
