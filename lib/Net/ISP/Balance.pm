@@ -1047,7 +1047,7 @@ sub _save_custom_chains {
 	my @rules = split("\n",`sudo iptables -t $table -S`);
 	# find custom chains
 	my $mine    = 'MARK-|REJECTPERM|DROPGEN|DROPINVAL|DROPPERM|DROPSPOOF|DROPFLOOD|DEBUG';
-	my @chains  = grep {!/^$mine/} grep {/^-N (\S+)/} @rules or next;
+	my @chains  = grep {!/^-N ($mine)/} grep {/^-N (\S+)/} @rules or next;
 	s/^-N // foreach @chains;
 	my $chains  = join '|',map {quotemeta($_)} @chains;
 	my @targets = grep {/-(?:j|A|I) (?:$chains)/} @rules;
