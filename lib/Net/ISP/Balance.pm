@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.12';
+our $VERSION    = '1.13';
 
 =head1 NAME
 
@@ -1649,32 +1649,32 @@ iptables -P INPUT    DROP
 iptables -P OUTPUT   DROP
 iptables -P FORWARD  DROP
 
-iptables -N REJECTPERM
-iptables -A REJECTPERM -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "REJECTED: "
-iptables -A REJECTPERM -j REJECT --reject-with icmp-net-unreachable
+iptables -N BAL-REJECTPERM
+iptables -A BAL-REJECTPERM -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "REJECTED: "
+iptables -A BAL-REJECTPERM -j REJECT --reject-with icmp-net-unreachable
 
-iptables -N DROPGEN
-iptables -A DROPGEN -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "GENERAL: "
-iptables -A DROPGEN -j DROP
+iptables -N BAL-DROPGEN
+iptables -A BAL-DROPGEN -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "GENERAL: "
+iptables -A BAL-DROPGEN -j DROP
 
-iptables -N DROPINVAL
-iptables -A DROPINVAL -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "INVALID: "
-iptables -A DROPINVAL -j DROP
+iptables -N BAL-DROPINVAL
+iptables -A BAL-DROPINVAL -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "INVALID: "
+iptables -A BAL-DROPINVAL -j DROP
 
-iptables -N DROPPERM
-iptables -A DROPPERM -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "ACCESS-DENIED: "
-iptables -A DROPPERM -j DROP
+iptables -N BAL-DROPPERM
+iptables -A BAL-DROPPERM -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "ACCESS-DENIED: "
+iptables -A BAL-DROPPERM -j DROP
 
-iptables -N DROPSPOOF
-iptables -A DROPSPOOF -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "DROP-SPOOF: "
-iptables -A DROPSPOOF -j DROP
+iptables -N BAL-DROPSPOOF
+iptables -A BAL-DROPSPOOF -j LOG -m limit --limit 1/minute --log-level 4 --log-prefix "DROP-SPOOF: "
+iptables -A BAL-DROPSPOOF -j DROP
 
-iptables -N DROPFLOOD
-iptables -A DROPFLOOD -m limit --limit 1/minute  -j LOG --log-level 4 --log-prefix "DROP-FLOOD: "
-iptables -A DROPFLOOD -j DROP
+iptables -N BAL-DROPFLOOD
+iptables -A BAL-DROPFLOOD -m limit --limit 1/minute  -j LOG --log-level 4 --log-prefix "DROP-FLOOD: "
+iptables -A BAL-DROPFLOOD -j DROP
 
-iptables -N DEBUG
-iptables -A DEBUG  -j LOG --log-level 3 --log-prefix "DEBUG: "
+iptables -N BAL-DEBUG
+iptables -A BAL-DEBUG  -j LOG --log-level 3 --log-prefix "DEBUG: "
 END
 ;
     if ($self->iptables_verbose) {
@@ -1811,7 +1811,7 @@ sub sanity_fw_rules {
 
     # we allow ICMP echo, but establish flood limits
     $self->iptables(['-A INPUT -p icmp --icmp-type echo-request -m limit --limit 1/s -j ACCEPT',
-		     '-A INPUT -p icmp --icmp-type echo-request -j DROPFLOOD']);
+		     '-A INPUT -p icmp --icmp-type echo-request -j BAL-DROPFLOOD']);
 
     # allowable traffic patterns within the LAN services
    for my $lan ($self->lan_services) {
@@ -1842,7 +1842,7 @@ sub sanity_fw_rules {
     $self->_lan_lan_forwarding_rules();
 
     # anything else is bizarre and should be dropped
-    $self->iptables('-A OUTPUT  -j DROPSPOOF');
+    $self->iptables('-A OUTPUT  -j BAL-DROPSPOOF');
 }
 
 # establish expected traffic patterns between lan(s) and isp interfaces
@@ -1857,7 +1857,7 @@ sub _lan_wan_forwarding_rules {
 	# allow lan/wan forwarding
 	for my $svc ($self->isp_services) {
 	    my $ispdev = $self->dev($svc);
-	    my $target = $self->_allow_forwarding($lan,$svc) ? 'ACCEPT' : 'REJECTPERM';
+	    my $target = $self->_allow_forwarding($lan,$svc) ? 'ACCEPT' : 'BAL-REJECTPERM';
 	    $self->iptables("-A FORWARD -i $dev -o $ispdev -s $net -j $target");
 	}
     }
@@ -1875,7 +1875,7 @@ sub _lan_lan_forwarding_rules {
 	    next if $i == $j;
 	    my $lan1 = $lans[$i];
 	    my $lan2 = $lans[$j];
-	    my $target = $self->_allow_forwarding($lan1,$lan2) ? 'ACCEPT' : 'REJECTPERM';
+	    my $target = $self->_allow_forwarding($lan1,$lan2) ? 'ACCEPT' : 'BAL-REJECTPERM';
 	    $self->iptables('-A FORWARD','-i',$self->dev($lan1),'-o',$self->dev($lan2),'-s',$self->net($lan1),'-d',$self->net($lan2),"-j $target");
 	}
     }
