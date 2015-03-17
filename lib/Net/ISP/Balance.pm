@@ -1041,6 +1041,28 @@ sub _service_field {
     $s->{$field};
 }
 
+sub _save_custom_chains {
+    my $self = shift;
+    for my $table ('filter','nat','mangle') {
+	my @rules = split("\n",`sudo iptables -t $table -S`);
+	# find custom chains
+	my @chains  = grep {!/^BAL-/ && !/MARK-/} grep {/^-N (\S+)/} @rules or next;
+	s/^-N // foreach @chains;
+	my $chains  = join '|',map {quotemeta($_)} @chains;
+	my @targets = grep {/-(?:j|A|I) (?:$chains)/} @rules;
+	$self->{_custom_chains}{$table} = [(map {"-N $_"} @chains),@targets];
+    }
+}
+
+sub _restore_custom_chains {
+    my $self = shift;
+    my $custom_chains = $self->{_custom_chains} or return;
+    for my $table (keys %{$custom_chains}) {
+	my @rules = @{$custom_chains->{$table}} or next;
+	$self->iptables([map {"-t $table $_"} @rules]);
+    }
+}
+
 =head1 FILES AND PATHS
 
 These are methods that determine where Net::ISP::Balance finds its
@@ -1638,6 +1660,7 @@ rules, including default rules and reporting.
 
 sub base_fw_rules {
     my $self = shift;
+    $self->_save_custom_chains;
     $self->sh(<<END);
 iptables -F
 iptables -X
@@ -1695,6 +1718,7 @@ iptables -t mangle -A PREROUTING  -j LOG  --log-prefix "mangle PRE: "
 END
 ;
     }
+    $self->_restore_custom_chains;
 }
 
 =head2 $bal->balancing_fw_rules()
