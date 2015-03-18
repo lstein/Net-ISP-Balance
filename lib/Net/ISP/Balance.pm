@@ -194,11 +194,12 @@ sub new {
 	verbose   => 0,
 	echo_only => 0,
 	services  => {},
-	rules_directory => $class->default_rules_directory,
-	lsm_conf_file   => $class->default_lsm_conf_file,
-	lsm_scripts_dir => $class->default_lsm_scripts_dir,
-	bal_conf_file   => $conf,
-	dummy_data      => $dummy_test_data,
+	rules_directory    => $class->default_rules_directory,
+	lsm_conf_file      => $class->default_lsm_conf_file,
+	lsm_scripts_dir    => $class->default_lsm_scripts_dir,
+	bal_conf_file      => $conf,
+	keep_custom_chains => 1,
+	dummy_data         => $dummy_test_data,
     },ref $class || $class;
 
     $self->_parse_configuration_file($conf);
@@ -361,6 +362,22 @@ sub echo_only {
     my $self = shift;
     my $d    = $self->{echo_only};
     $self->{echo_only} = shift if @_;
+    $d;
+}
+
+=head2 $boolean = $bal->keep_custom_chains([boolean]);
+
+Get/set the keep_custom_chains flag. If this is true (default), then
+any custom iptables chains, such as those created by miniunpnpd or
+fail2ban, will be restored after execution of the firewall rules. If
+false, then these rules were be flushed.
+
+=cut
+
+sub keep_custom_chains {
+    my $self = shift;
+    my $d    = $self->{keep_custom_chains};
+    $self->{keep_custom_chains} = shift if @_;
     $d;
 }
 
@@ -1472,7 +1489,14 @@ needed to create the balancing firewall.
 
 sub set_firewall {
     my $self = shift;
-    $self->base_fw_rules();
+    if ($self->keep_custom_chains) {
+	$self->_save_custom_chains;
+	$self->base_fw_rules();
+	$self->_restore_custom_chains;
+    } else {
+	$self->base_fw_rules();
+    }
+
     $self->balancing_fw_rules();
     $self->sanity_fw_rules();
     $self->nat_fw_rules();
@@ -1661,7 +1685,6 @@ rules, including default rules and reporting.
 
 sub base_fw_rules {
     my $self = shift;
-    $self->_save_custom_chains;
     $self->sh(<<END);
 iptables -F
 iptables -X
@@ -1719,7 +1742,6 @@ iptables -t mangle -A PREROUTING  -j LOG  --log-prefix "mangle PRE: "
 END
 ;
     }
-    $self->_restore_custom_chains;
 }
 
 =head2 $bal->balancing_fw_rules()

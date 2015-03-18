@@ -63,6 +63,11 @@ Each command-line option can be abbreviated or used in long-form.
 
  --kill,-k       Kill any running lsm process.
 
+ --flush,-f      Flush all firewall chains and rules. If not given, then
+                 the default is to try to keep custom iptables rules 
+                 introduced by firewall utilities such as fail2ban and
+                 miniunpnpd.
+
  --help,-h       Print this message.
 
 =head1 COMMON USAGE
@@ -194,12 +199,13 @@ use Carp 'croak';
 use Pod::Usage 'pod2usage';
 use constant LOCK_TIMEOUT => 30;  # if two processes running simultaneously, length of time second will wait for first
 
-my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP,$VERSION);
+my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP,$FLUSH,$VERSION);
 my $result = GetOptions('debug' => \$DEBUG,
 			'verbose'=>\$VERBOSE,
 			'Version'=>\$VERSION,
 			'status' => \$STATUS,
 			'kill'   => \$KILL,
+			'flush'  => \$FLUSH,
 			'help'   => \$HELP,
     );
 if (!$result || $HELP) {
@@ -228,6 +234,7 @@ fatal_error("Could not initialize balancer; maybe some interfaces are unavailabl
 
 $bal->echo_only($DEBUG);
 $bal->verbose($VERBOSE);
+$bal->keep_custom_chains(!$FLUSH);
 
 # these two subroutines exit
 do_status()   if $STATUS;

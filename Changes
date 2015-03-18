@@ -1,5 +1,6 @@
 1.13	-Save and restore any custom chains found in iptables to avoid overwriting
 	rules produced by other firewall manipulation software.
+	-Add --flush option to load_balance.pl to override this behavior.
 
 1.12    -Add locking to load_balance.pl script to avoid conditions in
          which multiple instances of the script is running.
