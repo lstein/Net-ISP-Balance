@@ -56,6 +56,131 @@ out of the box. Please feel free to
 support</a> for other distributions.</p>
 
 <h1>
+<a name="preparation" class="anchor" href="#preparation"><span class="octicon octicon-link"></span></a>Preparation</h1>
+
+<p>In preparation for installing this package, you should ensure that
+  your network is properly configured to allow for routing from your
+  internal LAN through the router and to the Internet. To aid you in
+  the preparatory steps, we'll consider the following typical home
+  router setup:</p>
+
+<img width="600" src="./images/network-topology.png" />
+
+<p>The router/firewall is connected to the home LAN via network
+  interface eth1. It is connected to the internet via two ISPs, one
+  using a cable modem attached to interface eth0, and the other using a
+  DSL modem via interface ppp0. We will assume that the IP addresses
+  for eth0 and ppp0 are assigned dynamically by the ISP, and that you
+  have given eth1 (the LAN interface) the IP address
+  192.168.0.1. There is at least one (and probably several) hosts on
+  the LAN, each of which communicate through the router to reach the
+  Internet. The router is where you will be installing and configuring
+  Net-ISP-Balance.</p>
+
+<p>Before you install Net-ISP-Balance, you need to confirm four
+  things:</p>
+<ol>
+  <li>That the hosts on your LAN can communicate with the router.
+  <li>That the router can communicate with the internet via the modem
+  attached to ppp0 (the ISP1 connection).
+  <li>That the router can communicate with the internet via the modem
+  attached to eth0 (the ISP2 connection).
+  <li>That the router is capable of forwarding packets from the LAN
+  through ISP1 and ISP2 using NAT.
+</ol>
+
+<p><b>Test 1: LAN connectivity.</b> First you'll test basic connectivity between router. Log into the
+  router, and confirm that you can ping one or more of the LAN host
+  machines. Log into the router, and run the following ping command,
+  assuming the LAN host you are testing to has IP address
+  192.168.0.2:</p>
+
+<pre>
+  # <b>ping -I eth1 192.168.0.2</b>
+  PING 192.168.0.2 (192.168.0.2) from 192.168.0.1 eth1: 56(84) bytes of data.
+  64 bytes from 192.168.0.2: icmp_seq=1 ttl=48 time=1.25 ms
+  64 bytes from 192.168.0.2: icmp_seq=2 ttl=48 time=1.82 ms
+  64 bytes from 192.168.0.2: icmp_seq=3 ttl=48 time=1.83 ms
+  ...
+</pre>
+
+<p>Replace "192.168.0.2" with the IP address of a suitable host. If
+  you are unsure of the address, log into the host and use the operating
+  system's net configuration system ("ifconfig" on Linux/Mac OSX, the
+  "Network and sharing" control panel in Windows), and replace "eth1"
+  with the appropriate network interface name for the LAN
+  connection. If this does not work, then do not try to install the
+  load balancer until the problem has been fixed.<p>
+
+<p><b>Test 2: ISP1 connectivity.</b> With just ISP1 connected (via
+  ppp0 in the example) and the other ISP physically disconnected,
+  confirm that you can ping the internet. Run the following
+  command:</p>
+
+<pre>
+  # <b>ping -I ppp0 8.8.8.8</b>
+  PING 8.8.8.8 (8.8.8.8) from 76.10.168.130 ppp0: 56(84) bytes of data.
+  64 bytes from 8.8.8.8: icmp_seq=1 ttl=53 time=24.4 ms
+  64 bytes from 8.8.8.8: icmp_seq=2 ttl=53 time=23.2 ms
+  64 bytes from 8.8.8.8: icmp_seq=3 ttl=53 time=26.3 ms
+  ...
+</pre>
+
+<p>The test address '8.8.8.8' is the Google public name server and
+  is generally a good choice as an internet ping test destination, but
+  you can use the IP address of any internet-accessible server
+  machine. If necessary, change 'ppp0' to the interface that is
+  connected to ISP1.</p>
+
+<p><b>Test 3: ISP2 connectivity.</b> Physically disconnect ISP1 from
+  the router and connect ISP2. Repeat the ping test against 8.8.8.8
+  using the network interface that connects to ISP2.Do not proceed to
+  the next test until you've confirmed both ISP1 and ISP2
+  connectivity.</p>
+
+<p><b>Test 4: Routing.</b> With just one of the ISPs physically
+  connected, reconfirm that you have ping connectivity between the
+  router and the LAN and between the router and the internet. Then run
+  the following commands on the router as the superuser:</p>
+
+<pre>
+  # <b>echo 1 > /proc/sys/net/ipv4/ip_forward</b>
+  # <b>iptables -P FORWARD ACCEPT</b>
+  # <b>iptables -t nat -A POSTROUTING -o ppp0 -j MASQUERADE</b>
+</pre>
+
+<p>The first command activates packet forwarding on the router. The
+  second tells the built-in firewall to allow packets to be forwarded
+  from one interface to the next. The final command configures the
+  firewall to activate NAT (network address translation) for all
+  packets going out on interface ppp0. <i>Important: 'ppp0' should be replaced by
+  the interface that connects to the currently attached ISP.</i></p>
+
+<p>Now log into one of the LAN hosts and run the following
+  command:</p>
+
+<pre>
+  # <b>ping 8.8.8.8</b>
+  PING 8.8.8.8 (8.8.8.8) from 192.168.0.2: 56(84) bytes of data.
+  64 bytes from 8.8.8.8: icmp_seq=1 ttl=53 time=24.4 ms
+  64 bytes from 8.8.8.8: icmp_seq=2 ttl=53 time=23.2 ms
+  64 bytes from 8.8.8.8: icmp_seq=3 ttl=53 time=26.3 ms
+  ...
+</pre>
+
+<p>If the hosts on your LAN do not have ready access to the 'ping'
+  command, then just open up a web browser and confirm internet
+  reachability. If all goes well, you will be able to reach the
+  internet from your LAN-connected host machines.</p>
+
+<p>You should repeat this test on the other ISP, but physically
+  disconnecting the first ISP's modem and connecting the other.<p>
+
+<p>If all tests pass, then you are ready to install and configure
+  Net-ISP-Balance.</p>
+
+
+<h1>
 <a name="installation" class="anchor" href="#installation"><span class="octicon octicon-link"></span></a>Installation</h1>
 
 <p>Here is a step-by-step summary of the steps to install, configure and test Net-ISP-Balance.</p>
