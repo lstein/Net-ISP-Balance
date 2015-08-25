@@ -1798,6 +1798,7 @@ END
     # packets from LAN
     for my $lan ($self->lan_services) {
 	my $landev = $self->dev($lan);
+	my $src    = $self->net($lan);
 	
 	if (@up > 1) {
 	    print STDERR "# creating balanced mangling rules\n" if $self->verbose;
@@ -1806,7 +1807,7 @@ END
 	    for my $svc (sort {$probabilities->{$b} <=> $probabilities->{$a}} @up) {
 		my $table       = $self->mark_table($svc);
 		my $probability = $probabilities->{$svc};
-		$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -j $table");
+		$self->iptables("-t mangle -A PREROUTING -i $landev -s $src -m conntrack --ctstate NEW -m statistic --mode random --probability $probability -j $table");
 	    }
 	}
 
@@ -1814,18 +1815,19 @@ END
 	    my $svc = $up[0];
 	    print STDERR "# forcing all traffic through $svc\n" if $self->verbose;
 	    my $table  = $self->mark_table($svc);
-	    $self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate NEW -j $table");
+	    $self->iptables("-t mangle -A PREROUTING -i $landev -s $src -m conntrack --ctstate NEW -j $table");
 	}
 
-	$self->iptables("-t mangle -A PREROUTING -i $landev -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
+	$self->iptables("-t mangle -A PREROUTING -i $landev -s $src -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
     }
 
     # inbound packets from WAN
     for my $wan ($self->isp_services) {
 	my $dev   = $self->dev($wan);
 	my $table = $self->mark_table($wan);
-	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate NEW -j $table");
-	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
+	my $src   = $self->net($wan);
+	$self->iptables("-t mangle -A PREROUTING -i $dev -s $src -m conntrack --ctstate NEW -j $table");
+	$self->iptables("-t mangle -A PREROUTING -i $dev -s $src -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
     }
 
 }
