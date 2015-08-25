@@ -1420,7 +1420,8 @@ sub _collect_interfaces {
 	    my $net   = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
 	    my $gw    = $gws{$dev}  || $peer || $self->_dhcp_gateway($dev) || $block->nth(1);
 	    $ifaces{$svc} = {
-		dev     => $vdev,
+#		dev     => $vdev,
+		dev     => $dev,    # otherwise, iptables will croak!!!
 		running => $running,
 		gw      => $gw,
 		net     => $net,
