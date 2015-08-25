@@ -108,11 +108,11 @@ ok($output=~m!echo "01 local routing rules go here"! &&
 ok($output=~m!debug: CABLE=>dev=eth0\ndebug: DSL=>dev=ppp0!,'perl local rules working');
 
 $output = capture(sub {$bal->balancing_fw_rules});
-ok($output=~m/iptables -t mangle -A PREROUTING -i eth1 -m conntrack --ctstate NEW -m statistic --mode random --probability 0.5 -j MARK-CABLE/,'balancing firewall rules produce correct mangle');
+ok($output=~m/iptables -t mangle -A PREROUTING -i eth1 -s 192\.168\.10\.0\/24 -m conntrack --ctstate NEW -m statistic --mode random --probability 0\.5 -j MARK-CABLE/,'balancing firewall rules produce correct mangle');
 
 $bal->up('CABLE');
 $output = capture(sub {$bal->balancing_fw_rules});
-ok($output=~m/iptables -t mangle -A PREROUTING -i eth1 -m conntrack --ctstate NEW -j MARK-CABLE/,'balancing firewall rules produce correct mangle');
+ok($output=~m/iptables -t mangle -A PREROUTING -i eth1 -s 192\.168\.10\.0\/24 -m conntrack --ctstate NEW -j MARK-CABLE/,'balancing firewall rules produce correct mangle');
 
 $bal->up('CABLE','DSL');
 
