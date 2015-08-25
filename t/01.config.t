@@ -7,7 +7,7 @@ use strict;
 use FindBin '$Bin';
 use lib $Bin,"$Bin/../lib";
 
-use Test::More tests=>36;
+use Test::More tests=>38;
 
 my $dummy_data = {
     ip_addr_show =><<'EOF',
@@ -36,6 +36,7 @@ my $dummy_data = {
 6: eth3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP qlen 1000
     link/ether 48:f8:b3:2e:f6:b2 brd ff:ff:ff:ff:ff:ff
     inet 192.168.12.1/24 brd 192.168.12.255 scope global eth3
+    inet 192.168.13.1/24 brd 192.168.13.255 scope global eth3:0
     inet6 fe80::4af8:b3ff:fe2e:f6b2/64 scope link 
        valid_lft forever preferred_lft forever
 7: ppp0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1492 qdisc pfifo_fast state UNKNOWN qlen 3
@@ -68,7 +69,7 @@ ok($bal,"balancer object created");
 
 my $i = $bal->services;
 my @s = sort keys %$i;
-is("@s",'CABLE DSL LAN SUBNET VPN',"five services created");
+is("@s",'CABLE DSL LAN SUBNET VPN VSUBNET',"six services created");
 
 is($i->{DSL}{dev},'ppp0','correct mapping of service to ppp device');
 is($i->{CABLE}{dev},'eth0','correct mapping of service to eth device');
@@ -78,6 +79,8 @@ is($i->{LAN}{ip},'192.168.10.1','correct mapping of static service to ip');
 is($i->{DSL}{gw},'112.211.154.198','correct mapping of ppp service to gw');
 is($i->{CABLE}{gw},'191.3.88.1','correct mapping of dhcp service to gw');
 is($i->{VPN}{net},'10.8.0.0/24','correct network for VPN device derived from routing table');
+is($i->{SUBNET}{ip},'192.168.12.1','correct address of eth3 base device');
+is($i->{VSUBNET}{ip},'192.168.13.1','correct address of eth3:0 virtual device');
 ok(defined($i->{CABLE}{fwmark}),'balanced fwmark defined');
 ok(!defined($i->{LAN}{fwmark}),'non-balanced fwmark undefined');
 is($bal->dev('DSL'),'ppp0','shortcut working');

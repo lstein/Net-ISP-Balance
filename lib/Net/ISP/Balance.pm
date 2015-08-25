@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.13';
+our $VERSION    = '1.14';
 
 =head1 NAME
 
@@ -1350,6 +1350,14 @@ sub _collect_interfaces {
     my $self = shift;
     my $s    = $self->{svc_config} or return;
 
+    # OH HELL - HAVE TO CHANGE LOGIC TO DEAL WITH VIRTUAL INTERFACES
+    # 1. From _ip_addr_show get all the inet XXX.XXX.XXX.XXX lines and calculate
+    #    corresponding network and virtual interface.
+    # 2. Record mapping of network to virtual interface in a hash (%vin?)
+    # 3. When going through the routes, replace $dev with virtual interface name
+    # 4. In (keys %devs) loop, create an inner loop for each inet found and replace
+    #    device with correct virtual device.
+
     # get interfaces with assigned addresses
     my $a    = $self->_ip_addr_show;
     my (undef,@ifs)  = split /^\d+: /m,$a;
@@ -1360,52 +1368,69 @@ sub _collect_interfaces {
 	($dev,$config);
     } @ifs;
 
+    # find virtual interfaces
+    my (%vnet,%vif);
+    for my $dev (keys %ifs) {
+	my $info = $ifs{$dev};
+	while ($info =~ /inet (\d+\.\d+\.\d+\.\d+)(?:\/(\d+))?.+?(\S+)$/mg) {
+	    my ($addr,$bits,$vdev) =  ($1,$2,$3);
+	    $bits ||= 32;
+	    my ($peer)      = $info =~ /peer\s+(\d+\.\d+\.\d+\.\d+)/;
+	    my $block       = Net::Netmask->new2("$addr/$bits") 
+		or die "unable to derive address for $dev: $Net::Netmask::error\nifconfig = \n$info";
+	    $vnet{$dev}{"$block"}    = $vdev;
+	    $vif{$dev}{$vdev}{block} = $block;
+	    $vif{$dev}{$vdev}{addr}  = $addr;
+	}
+    }
+
     # get existing routes
     my (%gws,%nets);
     my $r    = $self->_ip_route_show;
     my @routes = split /^(?!\s)/m,$r;
     chomp(@routes);
     foreach (@routes) {
-	while (/(\S+)\s+via\s+(\S+)\s+dev\s+(\w+)/g) {
+	while (/(\S+)\s+via\s+(\S+)\s+dev\s+(\S+)/g) {
 	    my ($net,$gateway,$dev) = ($1,$2,$3);
 	    ($net) = /^(\S+)/ if $net eq 'nexthop';
-	    $nets{$dev} = $net unless $net eq 'default';
-	    $gws{$dev}  = $gateway;
+	    my $vdev  = $vnet{$dev}{$net} || $dev;
+	    $nets{$vdev} = $net unless $net eq 'default';
+	    $gws{$vdev}  = $gateway;
 	}
     }
                                
     # map devices to services
     my %devs;
     for my $svc (keys %$s) {
-	my $dev = $s->{$svc}{dev};
-	$devs{$dev}=$svc;
+	my $vdev = $s->{$svc}{dev};
+	$devs{$vdev}=$svc;
     }
 
     my %ifaces;
     my $counter = 0;
     for my $dev (sort keys %devs) {
 	my $info      = $ifs{$dev} or next;
-	my $svc       = $devs{$dev};
-	my $role      = $s->{$svc}{role};
 	my $running   = $info =~ /[<,]UP[,>]/;
-	my ($addr,$bits)= $info =~ /inet (\d+\.\d+\.\d+\.\d+)(?:\/(\d+))?/;
-	$bits ||= 32;
-	my ($peer)      = $info =~ /peer\s+(\d+\.\d+\.\d+\.\d+)/;
-	my $block       = Net::Netmask->new2("$addr/$bits") 
-	    or die "unable to derive address for $dev: $Net::Netmask::error\nifconfig = \n$info";
-	my $gw          = $gws{$dev}  || $peer                    || $self->_dhcp_gateway($dev) || $block->nth(1);
-	my $net         = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
-	$ifaces{$svc} = {
-	    dev     => $dev,
-	    running => $running,
-	    gw      => $gw,
-	    net     => $net,
-	    ip      => $addr,
-	    fwmark  => $role eq 'isp' ? ++$counter : undef,
-	    table   => $role eq 'isp' ?   $counter : undef,
-	    role    => $role,
-	    ping    => $s->{$svc}{ping},
-	    weight  => $s->{$svc}{weight},
+	my ($peer)    = $info =~ /peer\s+(\d+\.\d+\.\d+\.\d+)/;
+	for my $vdev (keys %{$vif{$dev}}) {
+	    my $addr  = $vif{$dev}{$vdev}{addr};
+	    my $block = $vif{$dev}{$vdev}{block};
+	    my $svc   = $devs{$vdev};
+	    my $role  = $s->{$svc}{role};
+	    my $net   = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
+	    my $gw    = $gws{$dev}  || $peer || $self->_dhcp_gateway($dev) || $block->nth(1);
+	    $ifaces{$svc} = {
+		dev     => $vdev,
+		running => $running,
+		gw      => $gw,
+		net     => $net,
+		ip      => $addr,
+		fwmark  => $role eq 'isp' ? ++$counter : undef,
+		table   => $role eq 'isp' ?   $counter : undef,
+		role    => $role,
+		ping    => $s->{$svc}{ping},
+		weight  => $s->{$svc}{weight},
+	    }
 	};
     }
     return \%ifaces;

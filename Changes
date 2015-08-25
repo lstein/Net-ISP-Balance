@@ -1,3 +1,5 @@
+1.14    -Handle virtual interfaces correctly.
+
 1.13	-Save and restore any custom chains found in iptables to avoid overwriting
 	rules produced by other firewall manipulation software.
 	-Add --flush option to load_balance.pl to override this behavior.
