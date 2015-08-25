@@ -588,6 +588,56 @@ support the ability to weight traffic towards one ISP or another.</p>
 How Do I...?</h1>
 
 <dl>
+  <dt>...Load balance when I only have a single ethernet port on my router?</dt>
+
+  <dd>For simplicity of configuration I recommend that you use one
+  physical (real) network interface for each of the three components
+  of the network (the two ISP modems and the LAN); USB-based ethernet
+  interfaces are quite inexpensive these days. However, it is also
+  possible to set up balancing in which all components of the network
+  share the same physical wiring by using virtual network interfaces
+  on the router (see
+  <a href="http://www.liberiangeek.net/2012/04/create-virtual-network-adapters-in-ubuntu-12-04-precise-pangolin"/>this
+  getting started guide</a>). Create virtual network interfaces for
+  each of ISP1, ISP2 and the LAN and give each one a distinct IP
+  address and subnetwork.
+<p> Here's a simple example using
+  /etc/network/interfaces:</p>
+<pre>
+  # the LAN
+  auto eth0:0
+  iface eth0:0 inet static
+        address 192.168.0.1/24
+
+  # ISP1
+  auto eth0:1
+  iface eth0:1 inet static
+        address 192.168.1.1/24
+
+
+  # ISP2
+  auto eth0:2
+  iface eth0:2 inet static
+        address 192.168.2.1/24
+</pre>
+<p>
+  You will of course also have to configure the modems and the
+  machines on the LAN with the correct addresses and netmasks for the
+  chosen subnets. Now use a balance.conf configuration similar to this one:
+</p>
+<pre>
+ ##service    device   role     ping-ip           weight
+ LAN         eth0:0    lan                        <b>
+ CABLE       eth0:1    isp      173.194.43.95     1<b>
+ DSL         eth0:2    isp      173.194.43.95     1<b>
+</pre>
+<p>Net-ISP-Balance version 1.14 is required for this tactic to
+work. Previous versions contained a bug that prevented virtual network
+interfaces from being recognized.</p>
+<p>Net-ISP-Balance also works with VLANs. Simply use the appropriate
+VLAN device numbers (e.g. eth0.10)</p>
+  </dd>
+
   <dt>...Allow an incoming connection to a web server running on my
   router/firewall machine?</dt>
   <dd>Create a file
