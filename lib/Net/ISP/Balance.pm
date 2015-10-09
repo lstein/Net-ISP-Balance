@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.14';
+our $VERSION    = '1.15';
 
 =head1 NAME
 
@@ -560,25 +560,25 @@ iptables to select the routing of packets. For example, to forward all
 outgoing mail (destined to port 25) to the "CABLE" ISP, you would
 write:
 
-    $bal->force_route('CABLE','--syn','-p'=>'tcp','--dport'=>25);
+    $bal->force_route('CABLE','-p'=>'tcp','--syn','--dport'=>25);
 
 @selectors is a series of optional arguments that will be passed to
 iptables on the command line. They will simply be space-separated, and
 so the following is equivalent to the previous example:
 
-    $bal->force_route('CABLE','--syn -p tcp --dport 25');
+    $bal->force_route('CABLE','-p tcp --syn --dport 25');
 
 Bare arguments that begin with a leading hyphen and are followed by
 two or more alphanumeric characters are automatically converted into
 double-hyphen arguments. This allows you to simplify commands
 slightly. The following is equivalent to the previous examples:
 
-    $bal->force_route('CABLE',-syn,-p=>'tcp',-dport=>25);
+    $bal->force_route('CABLE',-p=>'tcp',-syn,-dport=>25);
 
 You can delete force_route rules by setting firewall_op() to 'delete':
 
     $bal->firewall_op('delete');
-    $bal->force_route('CABLE',-syn,-p=>'tcp',-dport=>25);
+    $bal->force_route('CABLE',-p=>'tcp',-syn,-dport=>25);
 
 =cut
 
