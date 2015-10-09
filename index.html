@@ -782,7 +782,7 @@ VLAN device numbers (e.g. eth0.10)</p>
   an executable file named 02.outgoing_mail.pl in $ETC_NETWORK/balance/firewall/
   with contents similar to this one:
     <pre>
-	  $B->force_route('CABLE','--syn -p tcp --dport 25');
+	  $B->force_route('CABLE','-p tcp --syn --dport 25');
     </pre>
   </dd>
 
