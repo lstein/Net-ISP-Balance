@@ -1,3 +1,6 @@
+1.16    -If an interface is down, or unconfigured, at the time of
+	initialization, then proceed without it.
+
 1.15	-Documentation fixes to force_route()
 
 1.14    -Handle virtual interfaces correctly.

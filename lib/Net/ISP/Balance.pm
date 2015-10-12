@@ -187,7 +187,7 @@ the various configuration files as $ETC_NETWORK.
 
 sub new {
     my $class = shift;
-    my ($conf,$dummy_test_data)  = @_;
+    my ($conf,%options)  = @_;
     $conf       ||= $class->default_conf_file;
     $conf       && -r $conf       || croak 'Must provide a readable configuration file path';
     my $self  = bless {
@@ -199,11 +199,13 @@ sub new {
 	lsm_scripts_dir    => $class->default_lsm_scripts_dir,
 	bal_conf_file      => $conf,
 	keep_custom_chains => 1,
-	dummy_data         => $dummy_test_data,
+	dummy_data         => $options{dummy_test_data},
+	dev_lookup_retries => $options{dev_lookup_retries},
+	dev_lookup_retry_delay => $options{dev_lookup_retry_delay},
     },ref $class || $class;
 
     $self->_parse_configuration_file($conf);
-    $self->_collect_interfaces_retry(10);  # try to collect interfaces over 10 seconds
+    $self->_collect_interfaces_retry();  # try to collect interfaces over 10 seconds
 
     return $self;
 }
@@ -362,6 +364,34 @@ sub echo_only {
     my $self = shift;
     my $d    = $self->{echo_only};
     $self->{echo_only} = shift if @_;
+    $d;
+}
+
+=head2 $retries = $bal->dev_lookup_retries([$retries])
+
+Get/set the number of times the library will try to look up an interface
+that is not up or does not have an IP address. Default is 10
+
+=cut
+
+sub dev_lookup_retries {
+    my $self = shift;
+    my $d    = $self->{dev_lookup_retries} || 10;
+    $self->{dev_lookup_retries} = shift if @_;
+    $d;
+}
+
+=head2 $seconds = $bal->dev_lookup_retry_delay([$seconds])
+
+Get/set the number of seconds between retries when an interface is not up
+or is missing an IP address. Default is 1.
+
+=cut
+
+sub dev_lookup_retry_delay {
+    my $self = shift;
+    my $d    = $self->{dev_lookup_retry_delay} || 1;
+    $self->{dev_lookup_retry_delay} = shift if @_;
     $d;
 }
 
@@ -1335,25 +1365,26 @@ sub _parse_configuration_file {
 
 sub _collect_interfaces_retry {
     my $self    = shift;
-    my $retries = 10;
-    my $ifs;
+    my $retries = $self->dev_lookup_retries;
+    my $wait    = $self->dev_lookup_retry_delay;
+    my %ifs;
     for (1..$retries) {
-	$ifs = eval{$self->_collect_interfaces()};
-	last if $ifs;
-	sleep 1;
+	last if $self->_collect_interfaces(\%ifs);
+	sleep $wait;
     }
-    croak "Could not get information on all interfaces after $retries s; last error was $@" unless $ifs;
-    $self->{services} = $ifs;
+    $self->{services} = \%ifs;
 }
 
 sub _collect_interfaces {
-    my $self = shift;
+    my $self            = shift;
+    my $interface_info  = shift;
+
     my $s    = $self->{svc_config} or return;
 
-    # OH HELL - HAVE TO CHANGE LOGIC TO DEAL WITH VIRTUAL INTERFACES
+    # LOGIC TO DEAL WITH VIRTUAL INTERFACES
     # 1. From _ip_addr_show get all the inet XXX.XXX.XXX.XXX lines and calculate
     #    corresponding network and virtual interface.
-    # 2. Record mapping of network to virtual interface in a hash (%vin?)
+    # 2. Record mapping of network to virtual interface in a hash (%vif)
     # 3. When going through the routes, replace $dev with virtual interface name
     # 4. In (keys %devs) loop, create an inner loop for each inet found and replace
     #    device with correct virtual device.
@@ -1374,10 +1405,10 @@ sub _collect_interfaces {
 	my $info = $ifs{$dev};
 	while ($info =~ /inet (\d+\.\d+\.\d+\.\d+)(?:\/(\d+))?.+?(\S+)$/mg) {
 	    my ($addr,$bits,$vdev) =  ($1,$2,$3);
+	    $addr or next;
 	    $bits ||= 32;
 	    my ($peer)      = $info =~ /peer\s+(\d+\.\d+\.\d+\.\d+)/;
-	    my $block       = Net::Netmask->new2("$addr/$bits") 
-		or die "unable to derive address for $dev: $Net::Netmask::error\nifconfig = \n$info";
+	    my $block       = Net::Netmask->new2("$addr/$bits");
 	    $vnet{$dev}{"$block"}    = $vdev;
 	    $vif{$dev}{$vdev}{block} = $block;
 	    $vif{$dev}{$vdev}{addr}  = $addr;
@@ -1406,8 +1437,9 @@ sub _collect_interfaces {
 	$devs{$vdev}=$svc;
     }
 
-    my %ifaces;
     my $counter = 0;
+    my $configured_interfaces = 0;
+
     for my $dev (sort keys %devs) {
 	my $info      = $ifs{$dev} or next;
 	my $running   = $info =~ /[<,]UP[,>]/;
@@ -1419,8 +1451,10 @@ sub _collect_interfaces {
 	    my $role  = $s->{$svc}{role};
 	    my $net   = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
 	    my $gw    = $gws{$dev}  || $peer || $self->_dhcp_gateway($dev) || $block->nth(1);
-	    $ifaces{$svc} = {
-#		dev     => $vdev,
+	    $configured_interfaces++;
+
+	    # copy into hash passed to us
+	    $interface_info->{$svc} = {
 		dev     => $dev,    # otherwise, iptables will croak!!!
 		running => $running,
 		gw      => $gw,
@@ -1434,7 +1468,7 @@ sub _collect_interfaces {
 	    }
 	};
     }
-    return \%ifaces;
+    return $configured_interfaces >= keys %devs;
 }
 
 sub _ip_addr_show {

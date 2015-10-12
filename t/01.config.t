@@ -7,7 +7,7 @@ use strict;
 use FindBin '$Bin';
 use lib $Bin,"$Bin/../lib";
 
-use Test::More tests=>38;
+use Test::More tests=>39;
 
 my $dummy_data = {
     ip_addr_show =><<'EOF',
@@ -39,7 +39,11 @@ my $dummy_data = {
     inet 192.168.13.1/24 brd 192.168.13.255 scope global eth3:0
     inet6 fe80::4af8:b3ff:fe2e:f6b2/64 scope link 
        valid_lft forever preferred_lft forever
-7: ppp0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1492 qdisc pfifo_fast state UNKNOWN qlen 3
+7: eth4: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP qlen 1000
+    link/ether 48:f8:b3:2e:f6:b2 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::4af8:b3ff:fe2e:f6b2/64 scope link 
+       valid_lft forever preferred_lft forever
+8: ppp0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1492 qdisc pfifo_fast state UNKNOWN qlen 3
     link/ppp 
     inet 11.120.199.108 peer 112.211.154.198/32 scope global ppp0
 31: tun0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UNKNOWN qlen 100
@@ -64,7 +68,9 @@ EOF
 
 use_ok('Net::ISP::Balance');
 my $bal = Net::ISP::Balance->new("$Bin/etc/balance.conf",
-				 $dummy_data);
+				 dummy_test_data=>$dummy_data,
+				 dev_lookup_retries=>1,
+    );
 ok($bal,"balancer object created");
 
 my $i = $bal->services;
@@ -83,6 +89,7 @@ is($i->{SUBNET}{ip},'192.168.12.1','correct address of eth3 base device');
 is($i->{VSUBNET}{ip},'192.168.13.1','correct address of eth3:0 virtual device');
 ok(defined($i->{CABLE}{fwmark}),'balanced fwmark defined');
 ok(!defined($i->{LAN}{fwmark}),'non-balanced fwmark undefined');
+ok(!defined($i->{BAD}{fwmark}),'down interface does not have fwmark');
 is($bal->dev('DSL'),'ppp0','shortcut working');
 is($bal->role('DSL'),'isp','isp role working');
 is($bal->role('LAN'),'lan','lan role working');
