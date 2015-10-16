@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.15';
+our $VERSION    = '1.17';
 
 =head1 NAME
 
@@ -1860,8 +1860,8 @@ END
 	my $dev   = $self->dev($wan);
 	my $table = $self->mark_table($wan);
 	my $src   = $self->net($wan);
-	$self->iptables("-t mangle -A PREROUTING -i $dev -s $src -m conntrack --ctstate NEW -j $table");
-	$self->iptables("-t mangle -A PREROUTING -i $dev -s $src -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
+	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate NEW -j $table");
+	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate ESTABLISHED,RELATED -j CONNMARK --restore-mark");
     }
 
 }

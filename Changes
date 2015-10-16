@@ -1,3 +1,6 @@
+1.17    -PREROUTING rules for incoming traffic on the WAN devices were incorrectly 
+	 setting a source filter. This is now removed.
+
 1.16    -If an interface is down, or unconfigured, at the time of
 	initialization, then proceed without it.
 
