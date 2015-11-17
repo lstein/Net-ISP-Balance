@@ -1941,8 +1941,15 @@ sub sanity_fw_rules {
    }
 
     # allow appropriate outgoing traffic via the ISPs
-    for my $svc ($self->isp_services) {
-	my $ispdev = $self->dev($svc);
+    # NOTE: we use svc_config here so that we allow outgoing traffic
+    # on interfaces that might be down
+#    for my $svc ($self->isp_services) {
+#	my $ispdev = $self->dev($svc);
+#	$self->iptables("-A OUTPUT -o $ispdev -j ACCEPT");
+#    }
+    for my $svc (keys %{$self->{svc_config}}) {
+	next unless  $self->{svc_config}{$svc}{role} eq 'isp';
+	my $ispdev = $self->{svc_config}{$svc}{dev};
 	$self->iptables("-A OUTPUT -o $ispdev -j ACCEPT");
     }
 

@@ -1,3 +1,6 @@
+1.18    -Prevent gateways from becoming permanently inaccessible when they temporarily
+          lose their assigned IP addresses.
+
 1.17    -PREROUTING rules for incoming traffic on the WAN devices were incorrectly 
 	 setting a source filter. This is now removed.
 
