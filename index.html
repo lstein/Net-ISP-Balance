@@ -156,6 +156,12 @@ support</a> for other distributions.</p>
   packets going out on interface ppp0. <i>Important: 'ppp0' should be replaced by
   the interface that connects to the currently attached ISP.</i></p>
 
+
+<p>On <b>Arch Linux</b>, you will also need to add the line <pre>IPForward=kernel</pre>
+to the systemd-networkd interface configuration file. See 
+<a href="https://wiki.archlinux.org/index.php/Internet_sharing#Enable_packet_forwarding">this page</a>
+for additional information.</p>
+
 <p>Now log into one of the LAN hosts and run the following
   command:</p>
 
