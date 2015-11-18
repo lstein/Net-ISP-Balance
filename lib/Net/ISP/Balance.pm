@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.17';
+our $VERSION    = '1.18';
 
 =head1 NAME
 
@@ -1322,7 +1322,6 @@ sub lsm_config_text {
 	$result .= "connection {\n";
 	$result .= " name=$svc\n";
 	$result .= " device=$device\n";
-#	$result .= " sourceip=$src_ip\n";
 	$result .= " checkip=$ping\n";
 	$result .= "}\n\n";
     }
