@@ -1322,7 +1322,7 @@ sub lsm_config_text {
 	$result .= "connection {\n";
 	$result .= " name=$svc\n";
 	$result .= " device=$device\n";
-	$result .= " sourceip=$src_ip\n";
+#	$result .= " sourceip=$src_ip\n";
 	$result .= " checkip=$ping\n";
 	$result .= "}\n\n";
     }

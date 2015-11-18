@@ -11,7 +11,8 @@ PROGS	= lsm
 PKG     = lsm
 
 CC	= gcc
-override CFLAGS	+= -Wall -O2 -DLSM_VERSION=\"$(VERSION)\"
+#override CFLAGS	+= -Wall -O2 -DLSM_VERSION=\"$(VERSION)\"
+override CFLAGS	+= -Wall -g -DLSM_VERSION=\"$(VERSION)\"
 LDFLAGS =
 
 .PHONY:	all clean distclean tar rpm

@@ -1964,7 +1964,10 @@ static int open_icmp_sock(CONFIG *cur)
 		}
 	}
 
-	if(pf == AF_INET && cur->device && *cur->device) {
+	/* LS -- doesn't work with virtual devices!
+	   We achieve the same effect by binding to the device's IP address later in probe_src_ip_addr().
+	*/
+	if(pf == AF_INET && cur->device && *cur->device && !strchr(cur->device,':')) {
 		if(setsockopt(t->sock, SOL_SOCKET, SO_BINDTODEVICE, cur->device, strlen(cur->device) + 1) == -1) {
 			syslog(LOG_INFO, "failed to bind to ping interface device \"%s\", \"%s\"", cur->device, strerror(errno));
 			close(t->sock);
@@ -2062,7 +2065,7 @@ static int probe_src_ip_addr(CONFIG *cur)
 		syslog(LOG_ERR, "ping probe failed to set close on exec on probe socket for %s reason \"%s\"", cur->name, strerror(errno));
 	}
 
-	if(cur->device && *cur->device) {
+	if(cur->device && *cur->device && !strchr(cur->device,':')) {
 		if(setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, cur->device, strlen(cur->device) + 1) == -1)
 			syslog(LOG_INFO, "WARNING: ping probe interface \"%s\" is ignored for %s reason \"%s\"", cur->device, cur->name, strerror(errno));
 	}
@@ -2081,26 +2084,17 @@ static int probe_src_ip_addr(CONFIG *cur)
 				return(2);
 			}
 		}
-		else {
-			int on = 1;
-			int alen = sizeof(saddr);
-
-			saddr.sin_port = htons(1025);
-			saddr.sin_addr = t->dst;
-
-			if(setsockopt(probe_fd, SOL_SOCKET, SO_DONTROUTE, (char*)&on, sizeof(on)) == -1)
-				syslog(LOG_INFO, "WARNING: ping probe setsockopt(SO_DONTROUTE) \"%s\"", strerror(errno));
-			if(connect(probe_fd, (struct sockaddr*)&saddr, sizeof(saddr)) == -1) {
-				syslog(LOG_ERR, "ping probe connect for %s failed \"%s\"", cur->name, strerror(errno));
-				close(probe_fd);
-				return(2);
-			}
-			if(getsockname(probe_fd, (struct sockaddr*)&saddr, (socklen_t*)&alen) == -1) {
-				syslog(LOG_ERR, "ping probe getsockname for %s failed \"%s\"", cur->name, strerror(errno));
-				close(probe_fd);
-				return(2);
-			}
-			t->src = saddr.sin_addr;
+		else { /* LS -- modified original logic to use SIOCGIFADDR ioctl to get interface address instead of relying on routing */
+		  struct ifreq ifr;
+		  bzero((void*)&ifr,sizeof(struct ifreq));
+		  strncpy(ifr.ifr_name,cur->device,IFNAMSIZ-1);
+		  ifr.ifr_addr.sa_family = pf;
+		  if (ioctl(probe_fd,SIOCGIFADDR,&ifr)) {
+		    syslog(LOG_ERR,"ioctl probe of current ip address for device %s failed \"%s\"",cur->device,strerror(errno));
+		    return(2);
+		  }
+		  t->src = ((struct sockaddr_in*) &ifr.ifr_addr)->sin_addr;
+		  syslog(LOG_INFO,"ioctl probe of %s returned source address %s\n",cur->device,inet_ntoa(t->src));
 		}
 	} else if (pf == AF_INET6) { /* not AF_INET */
 		struct sockaddr_in6 saddr;
