@@ -250,7 +250,9 @@ my %LSM_STATE = (up              => 'up',
 		 long_down_to_up => 'up');
 
 if (exists $LSM_STATE{$ARGV[0]}) {
+    do_unlock($lock_fh);    # to allow eventd to call us recursively
     $bal->run_eventd(@ARGV);
+    $lock_fh = do_lock();
     if (($SERVICES{my $name = $ARGV[1]})) {
 	my $device = $ARGV[3] || $bal->dev($name);
 	syslog('warning',"$name ($device) is now in state '$ARGV[0]'.");
