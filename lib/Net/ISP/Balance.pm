@@ -7,7 +7,7 @@ use Carp 'croak','carp';
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.18';
+our $VERSION    = '1.19';
 
 =head1 NAME
 
@@ -225,8 +225,9 @@ $ETC_NETWORK/balance/firewall. The former contains a series of files
 or perl scripts that define additional routing rules. The latter
 contains files or perl scripts that define additional firewall rules.
 
-Files located in $ETC_NETWORK/balance/pre-run will be executed just
-before load_balance.pl emits any route/firewall commands, while those
+Files located in $ETC_NETWORK/balance/pre-run will be executed AFTER
+load_balance.pl has cleared the routing table and firewall, but before
+it has emitted any any route/firewall commands. Files located in
 in $ETC_NETWORK/balance/post-run will be run after load_balance.pl is
 finished.
 
@@ -328,8 +329,12 @@ sub set_routes_and_firewall {
 	warn "No ISP services seem to be up. Not altering routing tables or firewall.\n";
 	return;
     }
-    $self->pre_run_rules();
+
+    # first disable forwarding and clear the routing and firewall tables
     $self->enable_forwarding(0);
+    $self->_initialize_routes();
+    $self->_initialize_firewall();
+    $self->pre_run_rules();
     $self->set_routes();
     $self->set_firewall();
     $self->enable_forwarding(1);
@@ -1368,6 +1373,7 @@ sub _collect_interfaces_retry {
     my $wait    = $self->dev_lookup_retry_delay;
     my %ifs;
     for (1..$retries) {
+	delete $self->{_interface_info_cache};   # don't want to cache partial results
 	last if $self->_collect_interfaces(\%ifs);
 	sleep $wait;
     }
@@ -1379,6 +1385,69 @@ sub _collect_interfaces {
     my $interface_info  = shift;
 
     my $s    = $self->{svc_config} or return;
+    my $i    = $self->interface_info;
+
+    # map devices to services
+    my %devs;
+    for my $svc (keys %$s) {
+	my $vdev = $s->{$svc}{dev};
+	$devs{$vdev}=$svc;
+    }
+
+    my $counter = 0;
+    my $configured_interfaces = 0;
+
+    for my $vdev (sort keys %devs) {
+	my $info  = $i->{$vdev} or next;
+	my $dev   = $info->{dev};
+	my $svc   = $devs{$vdev};
+	my $role  = $s->{$svc}{role};
+	$configured_interfaces++;
+
+	# copy into hash passed to us
+	$interface_info->{$svc} = {
+	    dev     => $dev,    # otherwise, iptables will croak!!!
+	    running => $info->{running},
+	    gw      => $info->{gw},
+	    net     => $info->{net},
+	    ip      => $info->{ip},
+	    fwmark  => $role eq 'isp' ? ++$counter : undef,
+	    table   => $role eq 'isp' ?   $counter : undef,
+	    role    => $role,
+	    ping    => $s->{$svc}{ping},
+	    weight  => $s->{$svc}{weight},
+	}
+    }
+    return $configured_interfaces >= keys %devs;
+}
+
+=head2 $if_hash = $bal->interface_info
+
+=head2 $if_hash = Net::ISP::Balance->interface_info
+
+This method returns a hashref containing information about each of the
+network interfaces found on the system (independent of those mentioned
+in the configuration file). It may be called as a class method or an
+instance method.
+
+Each key in the hash is the name of a (virtual) interface device. The
+values are hashrefs with the following keys:
+
+  key       value
+  ---       -----
+  dev       name of the underlying physical device (usually same as vdev)
+  running   boolean, true if interface is running
+  gw        gateway, if present
+  net       subnet in xxx.xxx.xxx.xxx/xx
+
+=cut
+
+
+sub interface_info {
+    my $self            = shift;
+    return $self->{_interface_info_cache} if exists $self->{_interface_info_cache};
+    
+    my %results;  # keyed by interface device
 
     # LOGIC TO DEAL WITH VIRTUAL INTERFACES
     # 1. From _ip_addr_show get all the inet XXX.XXX.XXX.XXX lines and calculate
@@ -1428,56 +1497,38 @@ sub _collect_interfaces {
 	    $gws{$vdev}  = $gateway;
 	}
     }
-                               
-    # map devices to services
-    my %devs;
-    for my $svc (keys %$s) {
-	my $vdev = $s->{$svc}{dev};
-	$devs{$vdev}=$svc;
-    }
-
-    my $counter = 0;
-    my $configured_interfaces = 0;
-
-    for my $dev (sort keys %devs) {
-	my $info      = $ifs{$dev} or next;
+    for my $dev (keys %ifs) {
+	my $info      = $ifs{$dev};
 	my $running   = $info =~ /[<,]UP[,>]/;
 	my ($peer)    = $info =~ /peer\s+(\d+\.\d+\.\d+\.\d+)/;
 	for my $vdev (keys %{$vif{$dev}}) {
 	    my $addr  = $vif{$dev}{$vdev}{addr};
 	    my $block = $vif{$dev}{$vdev}{block};
-	    my $svc   = $devs{$vdev};
-	    my $role  = $s->{$svc}{role};
 	    my $net   = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
 	    my $gw    = $gws{$dev}  || $peer || $self->_dhcp_gateway($dev) || $block->nth(1);
-	    $configured_interfaces++;
 
 	    # copy into hash passed to us
-	    $interface_info->{$svc} = {
+	    $results{$vdev} = {
 		dev     => $dev,    # otherwise, iptables will croak!!!
 		running => $running,
 		gw      => $gw,
 		net     => $net,
 		ip      => $addr,
-		fwmark  => $role eq 'isp' ? ++$counter : undef,
-		table   => $role eq 'isp' ?   $counter : undef,
-		role    => $role,
-		ping    => $s->{$svc}{ping},
-		weight  => $s->{$svc}{weight},
 	    }
-	};
+	}
     }
-    return $configured_interfaces >= keys %devs;
+
+    return $self->{_interface_info_cache} = \%results;
 }
 
 sub _ip_addr_show {
     my $self = shift;
-    return $self->{dummy_data}{"ip_addr_show"} || `ip addr show`;
+    return eval{$self->{dummy_data}{"ip_addr_show"}} || `ip addr show`;
 }
 
 sub _ip_route_show {
     my $self = shift;
-    return $self->{dummy_data}{"ip_route_show"} || `ip route show all`;
+    return eval{$self->{dummy_data}{"ip_route_show"}} || `ip route show all`;
 }
 
 # This subroutine is called for dhcp-assigned IP addresses to try to
@@ -1501,7 +1552,7 @@ sub _dhcp_gateway {
 sub _open_dhclient_leases {
     my $self = shift;
     my $device = shift;
-    if (my $dummy = $self->{dummy_data}{"leases_$device"}) {
+    if (my $dummy = eval{$self->{dummy_data}{"leases_$device"}}) {
 	open my $fh,'<',\$dummy or die $!;
         return $fh;
     }
@@ -1581,7 +1632,8 @@ needed to create the routing rules.
 
 sub routing_rules {
     my $self = shift;
-    $self->_initialize_routes();
+    # main table
+    $self->ip_route("add ",$self->net($_),'dev',$self->dev($_),'src',$self->ip($_)) foreach $self->service_names;
     $self->_create_default_route();
     $self->_create_service_routing_tables();
 }
@@ -1597,9 +1649,6 @@ END
     ;
 
     $self->ip_route("flush table ",$self->table($_)) foreach $self->isp_services;
-
-    # main table
-    $self->ip_route("add ",$self->net($_),'dev',$self->dev($_),'src',$self->ip($_)) foreach $self->service_names;
 }
 
 sub _create_default_route {
@@ -1735,6 +1784,18 @@ sub _execute_rules_files {
 # firewall rules
 #########################
 
+sub _initialize_firewall {
+    my $self = shift;
+    $self->sh(<<END);
+iptables -F
+iptables -X
+iptables -t nat    -F
+iptables -t nat    -X
+iptables -t mangle -F
+iptables -t mangle -X
+END
+}
+
 =head2 $bal->base_fw_rules()
 
 This method is called by set_firewall() to set up basic firewall
@@ -1745,12 +1806,6 @@ rules, including default rules and reporting.
 sub base_fw_rules {
     my $self = shift;
     $self->sh(<<END);
-iptables -F
-iptables -X
-iptables -t nat    -F
-iptables -t nat    -X
-iptables -t mangle -F
-iptables -t mangle -X
 iptables -P INPUT    DROP
 iptables -P OUTPUT   DROP
 iptables -P FORWARD  DROP

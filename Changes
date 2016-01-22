@@ -1,3 +1,8 @@
+1.19    -Expose a new interface_info() method to end users.
+        -Change behavior of pre-run-scripts to execute AFTER the routing tables
+         and firewall rules are flushed. This allows the pre-run-script to add
+         routing and firewall rules and not have them flushed immediately afterward.
+
 1.18    -Prevent gateways from becoming permanently inaccessible when they temporarily
           lose their assigned IP addresses.
 	-Fix lsm to allow to specify virtual devices (e.g. eth0:1)
