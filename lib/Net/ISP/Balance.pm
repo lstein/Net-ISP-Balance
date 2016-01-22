@@ -205,7 +205,15 @@ sub new {
     },ref $class || $class;
 
     $self->_parse_configuration_file($conf);
-    $self->_collect_interfaces_retry();  # try to collect interfaces over 10 seconds
+
+    # Instead of potentially timing out on new(), we collect information on all 
+    # interfaces that are currently up. We do this again with the timeout before
+    # actually changing the routing table, when it is critical that all interfaces
+    # be configured.
+    # $self->_collect_interfaces_retry();  # try to collect interfaces over 10 seconds
+    my %ifs;
+    $self->_collect_interfaces(\%ifs);
+    $self->{services} = \%ifs;
 
     return $self;
 }
@@ -325,20 +333,76 @@ object to emit firewall and routing rules.
 
 sub set_routes_and_firewall {
     my $self = shift;
-    unless ($self->isp_services) {
-	warn "No ISP services seem to be up. Not altering routing tables or firewall.\n";
-	return;
-    }
+
+    $self->save_routing_and_firewall();
 
     # first disable forwarding and clear the routing and firewall tables
     $self->enable_forwarding(0);
     $self->_initialize_routes();
     $self->_initialize_firewall();
     $self->pre_run_rules();
-    $self->set_routes();
-    $self->set_firewall();
-    $self->enable_forwarding(1);
-    $self->post_run_rules();
+    $self->_collect_interfaces_retry();
+    if ($self->isp_services) {
+	$self->set_routes();
+	$self->set_firewall();
+	$self->enable_forwarding(1);
+	$self->post_run_rules();
+    } else {
+	warn "No ISP services seem to be up. Restoring routing tables and firewall.\n";
+	$self->restore_routing_and_firewall() unless $self->echo_only;
+	return;
+    }
+}
+
+sub save_routing_and_firewall {
+    my $self = shift;
+
+    $self->{stored_routes} = '';
+    $self->{stored_rules} = '';
+    $self->{stored_firewall} = '';
+
+    open my $f,"ip route save table all|" or die $!; # binary
+    do {1} while read($f,$self->{stored_routes},1024,length $self->{stored_routes});
+    close $f;
+
+    open $f,"ip rule show|" or die $!;    # text
+    while (<$f>) {
+	$self->{stored_rules} .= $_;
+    }
+    close $f;
+
+    open $f,"iptables-save|" or die $!; # text
+    while (<$f>) {
+	$self->{stored_firewall} .= $_;
+    }
+    close $f;
+}
+
+sub restore_routing_and_firewall {
+    my $self = shift;
+
+    $self->_initialize_routes();
+    if ($self->{stored_routes}) {
+	open my $f,"|ip route restore" or die $!;
+	print $f $self->{stored_routes};
+	close $f;
+    }
+
+    if ($self->{stored_rules}) {
+	my @rules = split "\n",$self->{stored_rules};
+	for my $r (@rules) {
+	    my ($priority,$rule) = $r =~ /^(\d+):\s*(.+)/;
+	    next if $priority == 32766;  # these are created by _initialize!
+	    next if $priority == 32767;
+	    $self->ip_rule('add',$rule,"priority $priority");
+	}
+    }
+
+    if ($self->{stored_firewall}) {
+	open my $f,"|iptables-restore" or die $!;
+	print $f $self->{stored_firewall};
+	close $f;
+    }
 }
 
 =head2 $verbose = $bal->verbose([boolean]);
@@ -1445,7 +1509,8 @@ values are hashrefs with the following keys:
 
 sub interface_info {
     my $self            = shift;
-    return $self->{_interface_info_cache} if exists $self->{_interface_info_cache};
+    return $self->{_interface_info_cache} 
+           if ref $self && exists $self->{_interface_info_cache};
     
     my %results;  # keyed by interface device
 
@@ -1518,7 +1583,8 @@ sub interface_info {
 	}
     }
 
-    return $self->{_interface_info_cache} = \%results;
+    $self->{_interface_info_cache} = \%results if ref $self;
+    return \%results;
 }
 
 sub _ip_addr_show {
