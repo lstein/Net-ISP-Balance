@@ -3,6 +3,7 @@ package Net::ISP::Balance;
 use strict;
 use Fcntl ':flock';
 use Carp 'croak','carp';
+use Data::Dumper;
 
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
@@ -357,12 +358,17 @@ sub set_routes_and_firewall {
 sub save_routing_and_firewall {
     my $self = shift;
 
-    $self->{stored_routes} = '';
+    $self->{stored_routes} = [];
     $self->{stored_rules} = '';
     $self->{stored_firewall} = '';
 
-    open my $f,"ip route save table all|" or die $!; # binary
-    do {1} while read($f,$self->{stored_routes},1024,length $self->{stored_routes});
+    open my $f,"ip route show table all|" or die $!; # binary
+    while (<$f>) {
+	chomp;
+	next if /unreachable/;
+	next if /proto none/;
+	unshift @{$self->{stored_routes}},$_;
+    }
     close $f;
 
     open $f,"ip rule show|" or die $!;    # text
@@ -383,9 +389,9 @@ sub restore_routing_and_firewall {
 
     $self->_initialize_routes();
     if ($self->{stored_routes}) {
-	open my $f,"|ip route restore" or die $!;
-	print $f $self->{stored_routes};
-	close $f;
+	for (@{$self->{stored_routes}}) {
+	    $self->ip_route("add $_");
+	}
     }
 
     if ($self->{stored_rules}) {
@@ -1450,6 +1456,8 @@ sub _collect_interfaces {
 
     my $s    = $self->{svc_config} or return;
     my $i    = $self->interface_info;
+
+#     print STDERR Dumper($i);
 
     # map devices to services
     my %devs;

@@ -240,8 +240,6 @@ $bal->keep_custom_chains(!$FLUSH);
 do_status()   if $STATUS;
 do_kill_lsm() if $KILL;
 
-fatal_error("No ISP services appear to be configured. Make sure that balance.conf is correctly set up and that the ISP and LAN-connected interfaces are configured and operational") unless $bal->isp_services;
-
 my %SERVICES = map {$_=>1} $bal->isp_services;
 
 my %LSM_STATE = (up              => 'up',
@@ -269,13 +267,10 @@ else {
     $bal->event($_ => 'down') foreach @down;
 }
 
-my @up = $bal->up;
-syslog('info',"ISP services currently marked up: @up");    
-
-# start lsm process if it is not running
+syslog('info',"adjusting routing tables...");
+$bal->set_routes_and_firewall();
 start_lsm($bal) unless @ARGV || $DEBUG;
 
-$bal->set_routes_and_firewall();
 exit 0;
 
 sub do_status {
