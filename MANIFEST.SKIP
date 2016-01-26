@@ -78,3 +78,9 @@
 
 ^lsm/lsm$
 ^lsm/Makefile.depend
+\.out
+\.log
+\.bin
+\.sh
+^lsm/lsm-debug\.conf
+^lsm/lsm\.c\.orig

@@ -1,3 +1,7 @@
+1.20	-Further changes to support pre-run scripts that bring up interfaces at
+	the last minute (e.g. openvpn)
+	-Added an example configuration for load balancing over two openvpn servers.
+
 1.19    -Expose a new interface_info() method to end users.
         -Change behavior of pre-run-scripts to execute AFTER the routing tables
          and firewall rules are flushed. This allows the pre-run-script to add

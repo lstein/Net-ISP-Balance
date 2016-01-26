@@ -8,7 +8,7 @@ use Data::Dumper;
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.19';
+our $VERSION    = '1.20';
 
 =head1 NAME
 

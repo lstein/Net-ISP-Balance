@@ -9,6 +9,8 @@ etc/balance/post-run/post-run-script.pl
 etc/balance/pre-run/pre-run-script.pl
 etc/balance/routes/01.local_routes
 etc/balance/routes/02.local_routes.pl
+examples/openvpn-client-balancing/balance.conf
+examples/openvpn-client-balancing/openvpn-prerun-script.pl
 lib/Net/ISP/Balance.pm
 LICENSE
 lsm/balancer_event_script
