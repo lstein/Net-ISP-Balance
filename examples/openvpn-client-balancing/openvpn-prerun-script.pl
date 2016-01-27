@@ -6,8 +6,8 @@
 
 my $CONFIG = <<END;
 # service    physical_interface   tunnel_interface
-pia1         eth0                 tun0
-pia2         eth1                 tun1
+vpn1         eth0                 tun0
+vpn2         eth1                 tun1
 END
     ;
 # this is the number of seconds we will wait for each OpenVPN interface to come up.
