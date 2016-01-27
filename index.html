@@ -850,7 +850,94 @@ VLAN device numbers (e.g. eth0.10)</p>
 	<li>the previous state
 	<li>a timestamp
       </ol>
-</dd>
+
+  </dd>
+
+  <dt>...Load balance across two OpenVPN tunnels?</dt>
+
+  <dd>
+    This recipe is designed for the case in which you have two or more
+    interfaces on the machine that is serving as a router, you wish to
+    run a OpenVPN tunnel across each of the interfaces, and you wish
+    the router machine and all the hosts on the LAN to load balance
+    across the two (or more) tunnels. The instructions and the example
+    setup script are Ubuntu/Mint/Debian specific. Some work will be
+    required for other distributions.
+    <ol>
+      <li>
+	First, create a different OpenVPN client configuration file
+	for each of the ISP interfaces. It is important to understand
+	that each interface requires a <b>distinct</b> tunnel. One
+	tunnel might work, but it will choose one of the ISP
+	interfaces at random and will not load balance across
+	them. You are free to use the same OpenVPN provider multiple
+	times (if your provider allows it), or to use two or more
+	different providers. Choose sensible names for the two OpenVPN
+	configuration file. In this recipe, I am going to call them
+	"vpn1" and "vpn2". Now, before going any further please confirm
+	that with just one ISP interface up and running, you can start
+	and stop the OpenVPN clients using the "service" commands
+	<code>service openvpn start vpn1</code> and <code>service
+	openvpn start vpn2</code>. Make sure that the VPNs
+	are <b>not</b> set to autostart at boot time.
+      </li>
+      <li>
+	 Second, find the script named openvpn-prerun-script.pl that
+	is located in
+	the <code>examples/openvpn-client-balancing</code> directory
+	of the Net-ISP-Balance distribution. Make a copy of it and
+	open it up with a text editor. Toward the top, you will find a
+	little embedded configuration table that looks like this:
+	 <pre>
+# service    physical_interface   tunnel_interface                                                                                                                                                    
+vpn1         eth0                 tun0
+vpn2         eth1                 tun1
+	 </pre>
+	 Without changing the line above or below, edit the columns to
+	 match how your system is configured. Change "vpn1" and "vpn2"
+	 to the names of the OpenVPN configuration files you created
+	 for the two services, and alter the physical interface names
+	 ("eth0", "eth1") to match the interfaces that your router
+	 uses to connect to your ISPs. The names of the tunnels
+	 ("tun0", "tun1") probably do not need to change. You may also
+	 add additional VPNs and interfaces by adding additional rows
+	 using the same format.
+      </li>
+      <li>
+	Third, copy the edited script
+	into <code>/etc/network/balance/pre-run/</code>. You can
+	change the script's name if you wish.
+      </li>
+      <li>
+	Last step! Edit <code>/etc/network/balance.conf</code> to tell
+	the load balancer to balance across the VPN interfaces (tun0,
+	tun1...) rather than across the physical interfaces. It should
+	look something like this:
+<pre>
+#service    device   role     ping-ip           weight
+VPN1        tun0     isp      173.194.43.95     1<b>
+VPN2        tun1     isp      173.194.43.95     1<b>
+LAN         eth1     lan                        <b>
+</pre>
+It doesn't actually matter what you name the VPN services, but it will
+be less confusing if you use the same names as used by OpenVPN
+configuration files.
+      </li>
+    </ol>
+    You should now be able to run <pre>load_balance.pl</pre> as
+    root. The pre-run script will do the last needed bit of adjustment
+    of the OpenVPN configuration files (matching the local address of
+    the interface that the client binds to the one indicated in the
+    pre-run script), setting up the routing tables appropriately, and
+    launching the VPNs. The load_balance script will take care of the rest.
+    <p>
+      <b>Caveat emptor:</b> The pre-run script is a slightly
+      complicated piece of code that makes various assumptions about
+      your system. It has not been tested exhaustively and may
+      break. Please test extensively before entrusting this to a
+      production router.
+  </dd>
+
 
 </dl>
 
