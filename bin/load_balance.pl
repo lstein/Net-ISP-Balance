@@ -307,8 +307,6 @@ sub start_or_reload_lsm {
 
     my $lsm_running = $lsm_pid && kill(0=>$lsm_pid);
 
-    syslog('info',"lsm PID=$lsm_pid, is_running=$lsm_running");
-
     if (!$lsm_running) {
 	syslog('info',"Starting lsm link status monitoring daemon");    
 	$bal->start_lsm();
@@ -316,6 +314,8 @@ sub start_or_reload_lsm {
     elsif ($config_changed) {
 	syslog('info',"Reloading lsm link status monitoring daemon");    
 	kill(HUP => $lsm_pid);
+    } else {
+	syslog('info',"lsm running and doesn't need to be reloaded");
     }
     
 }
