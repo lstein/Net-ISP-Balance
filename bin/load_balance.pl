@@ -302,8 +302,13 @@ sub start_or_reload_lsm {
 
     my $config_changed = write_lsm_config($bal);
     my $lsm_conf       = $bal->lsm_conf_file;
-    my $lsm_pid     = -e '/var/run/lsm.pid' && `cat /var/run/lsm.pid`;
-    my $lsm_running = kill(0=>$lsm_pid);
+    my $lsm_pid        = -e '/var/run/lsm.pid' && `cat /var/run/lsm.pid`;
+    chomp($lsm_pid);
+
+    my $lsm_running = $lsm_pid && kill(0=>$lsm_pid);
+
+    syslog('info',"lsm PID=$lsm_pid, is_running=$lsm_running");
+
     if ($lsm_running && $config_changed) {
 	syslog('info',"Reloading lsm link status monitoring daemon");    
 	kill(HUP => $lsm_pid);
