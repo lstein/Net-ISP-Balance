@@ -269,7 +269,8 @@ else {
 
 syslog('info',"adjusting routing tables...");
 $bal->set_routes_and_firewall();
-start_lsm($bal) unless @ARGV || $DEBUG;
+start_or_reload_lsm($bal);
+# start_lsm($bal) unless @ARGV || $DEBUG;
 
 exit 0;
 
@@ -296,23 +297,26 @@ sub do_kill_lsm {
     exit 0;
 }
 
-sub start_lsm {
+sub start_or_reload_lsm {
     my $bal = shift;
 
     my $lsm_conf = $bal->lsm_conf_file;
     my $bal_conf = $bal->bal_conf_file;
-
-    # kill existing lsm
-    $bal->signal_lsm('TERM');
 
     # Create config file
     open my $fh,'>',$lsm_conf or die "$lsm_conf: $!";
     print $fh $bal->lsm_config_text();
     close $fh or die "$lsm_conf: $!";
 
-    # now start the process
-    syslog('info',"Starting lsm link status monitoring daemon");    
-    $bal->start_lsm();
+    my $lsm_pid     = -e '/var/run/lsm.pid' && `cat /var/run/lsm.pid`;
+    my $lsm_running = kill(0=>$lsm_pid);
+    if ($lsm_running) {
+	syslog('info',"Reloading lsm link status monitoring daemon");    
+	kill(HUP => $lsm_pid);
+    } else {
+	syslog('info',"Starting lsm link status monitoring daemon");    
+	$bal->start_lsm();
+    }
 }
 
 sub fatal_error {
