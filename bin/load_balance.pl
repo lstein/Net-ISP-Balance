@@ -300,23 +300,38 @@ sub do_kill_lsm {
 sub start_or_reload_lsm {
     my $bal = shift;
 
-    my $lsm_conf = $bal->lsm_conf_file;
-    my $bal_conf = $bal->bal_conf_file;
-
-    # Create config file
-    open my $fh,'>',$lsm_conf or die "$lsm_conf: $!";
-    print $fh $bal->lsm_config_text();
-    close $fh or die "$lsm_conf: $!";
-
+    my $config_changed = write_lsm_config($bal);
+    my $lsm_conf       = $bal->lsm_conf_file;
     my $lsm_pid     = -e '/var/run/lsm.pid' && `cat /var/run/lsm.pid`;
     my $lsm_running = kill(0=>$lsm_pid);
-    if ($lsm_running) {
+    if ($lsm_running && $config_changed) {
 	syslog('info',"Reloading lsm link status monitoring daemon");    
 	kill(HUP => $lsm_pid);
     } else {
 	syslog('info',"Starting lsm link status monitoring daemon");    
 	$bal->start_lsm();
     }
+}
+
+sub write_lsm_config {
+    my $bal = shift;
+
+    my $lsm_conf = $bal->lsm_conf_file();
+
+    my $old_text = '';
+    open my $fh,$lsm_conf or die "$lsm_conf: $!";
+    $old_text .= $_ while <$fh>;
+    close $fh;
+
+    my $new_text = $bal->lsm_config_text();
+    return if $new_text eq $old_text;
+    
+    # Create config file
+    open $fh,'>',$lsm_conf or die "$lsm_conf: $!";
+    print $fh $new_text;
+    close $fh or die "$lsm_conf: $!";
+    
+    return 1;
 }
 
 sub fatal_error {
