@@ -267,10 +267,9 @@ else {
     $bal->event($_ => 'down') foreach @down;
 }
 
-syslog('info',"adjusting routing tables...");
+syslog('info',"Adjusting routing tables.");
 $bal->set_routes_and_firewall();
 start_or_reload_lsm($bal);
-# start_lsm($bal) unless @ARGV || $DEBUG;
 
 exit 0;
 
@@ -311,11 +310,9 @@ sub start_or_reload_lsm {
 	syslog('info',"Starting lsm link status monitoring daemon");    
 	$bal->start_lsm();
     }
-    elsif ($config_changed) {
+    else {
 	syslog('info',"Reloading lsm link status monitoring daemon");    
 	kill(HUP => $lsm_pid);
-    } else {
-	syslog('info',"lsm running and doesn't need to be reloaded");
     }
     
 }
