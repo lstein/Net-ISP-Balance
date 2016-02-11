@@ -306,12 +306,12 @@ sub start_or_reload_lsm {
     my $lsm_running = $lsm_pid && kill(0=>$lsm_pid);
 
     if (!$lsm_running) {
-	print STDERR  "Starting lsm link status monitoring daemon\n");    
+	print STDERR  "Starting lsm link status monitoring daemon\n";    
 	syslog('info',"Starting lsm link status monitoring daemon");    
 	$bal->start_lsm();
     }
     else {
-	print STDERR  "Reloading lsm link status monitoring daemon\n");    
+	print STDERR  "Reloading lsm link status monitoring daemon\n";    
 	syslog('info',"Reloading lsm link status monitoring daemon");    
 	kill(HUP => $lsm_pid);
     }
