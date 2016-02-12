@@ -269,7 +269,7 @@ else {
 
 syslog('info',"Adjusting routing tables.");
 $bal->set_routes_and_firewall();
-do_kill_lsm() unless @ARGV;
+kill_lsm() unless @ARGV;
 start_or_reload_lsm($bal);
 
 exit 0;
@@ -287,12 +287,16 @@ sub do_status {
 }
 
 sub do_kill_lsm {
+    kill_lsm();
+    exit 0;
+}
+
+sub kill_lsm {
     my $lsm_running = -e '/var/run/lsm.pid' && kill(0=>`cat /var/run/lsm.pid`);
     if ($lsm_running) {
 	kill(TERM => `cat /var/run/lsm.pid`);
 	print STDERR "lsm process killed\n";
     }
-    exit 0;
 }
 
 sub start_or_reload_lsm {
