@@ -520,7 +520,7 @@ The result code is the same as CORE::system().
 sub sh {
     my $self = shift;
     my @args  = @_;
-    my $arg   = join ' ',@args;
+    my $arg   = join ' ',map {$_||''} @args; #quench uninit variable warnings
     chomp($arg);
     carp $arg   if $self->verbose;
     if ($self->echo_only) {
