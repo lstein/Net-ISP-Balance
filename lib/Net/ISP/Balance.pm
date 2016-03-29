@@ -955,7 +955,7 @@ Return list of service names that correspond to load-balanced ISPs.
 sub isp_services {
     my $self = shift;
     my @n    = $self->service_names;
-    return grep {$self->role($_) eq 'isp'} @n;
+    return grep {$self->role($_)||'' eq 'isp'} @n; # kill uninit warning
 }
 
 =head2 @names = $bal->lan_services
@@ -968,7 +968,7 @@ Return list of service names that correspond to lans.
 sub lan_services {
     my $self = shift;
     my @n    = $self->service_names;
-    return grep {$self->role($_) eq 'lan'} @n;
+    return grep {$self->role($_)||'' eq 'lan'} @n; # kill uninit warning...
 }
 
 =head2 $state = $bal->event($service => $new_state)
