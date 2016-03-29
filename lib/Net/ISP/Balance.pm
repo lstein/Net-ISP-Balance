@@ -8,7 +8,7 @@ use Data::Dumper;
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.20';
+our $VERSION    = '1.21';
 
 =head1 NAME
 
@@ -440,6 +440,23 @@ sub echo_only {
     my $d    = $self->{echo_only};
     $self->{echo_only} = shift if @_;
     $d;
+}
+
+=head2 $mode = $bal->operating_mode([$mode])
+
+Set or interrogate the operating mode. Will return one of "balanced"
+(currently the default) or "failover". This corresponds to the "mode"
+option in the configuration file. If the option is neither "balanced"
+nor "failover", then "balanced" is chosen (be warned!)
+
+=cut
+
+sub operating_mode {
+    my $self = shift;
+    my $d    = $self->{operating_mode};
+    $self->{operating_mode} = shift if @_;
+    return 'failover' if $d =~ /failover/i;
+    return 'balanced';
 }
 
 =head2 $retries = $bal->dev_lookup_retries([$retries])
@@ -1418,6 +1435,10 @@ sub _parse_configuration_file {
 	    push @forwarding_group,\@group;
 	    next;
 	}
+	if (/^mode\s*=\s*(.+)$/) {   # operating mode
+	    $self->operating_mode($1);
+	    next;
+	}
 	if (/^(\w+)\s*=\s*(.*)$/) { # lsm config
 	    $lsm_options{"-${1}"} = $2;
 	    next;
@@ -1680,8 +1701,7 @@ sub set_firewall {
     } else {
 	$self->base_fw_rules();
     }
-
-    $self->balancing_fw_rules();
+    $self->balancing_fw_rules();  # WARNING: This is a null-op in "failover" mode
     $self->sanity_fw_rules();
     $self->nat_fw_rules();
     $self->local_fw_rules();
@@ -1699,8 +1719,8 @@ sub enable_forwarding {
 }
 =head2 $bal->routing_rules()
 
-This method is called by set_routes() to emit the rules
-needed to create the routing rules.
+This method is called by set_routes() to emit the rules needed to
+create the routing rules.
 
 =cut
 
@@ -1708,7 +1728,16 @@ sub routing_rules {
     my $self = shift;
     # main table
     $self->ip_route("add ",$self->net($_),'dev',$self->dev($_),'src',$self->ip($_)) foreach $self->service_names;
-    $self->_create_default_route();
+
+    # different handling of the default route depending on whether we are in
+    # "balanced" or "failover" mode.
+    my $mode = $self->operating_mode;
+    if ($mode eq 'balanced') {
+	$self->_create_default_multipath_route();
+    } elsif ($mode eq 'failover') {
+	$self->_create_default_failover_route();
+    }
+
     $self->_create_service_routing_tables();
 }
 
@@ -1725,9 +1754,8 @@ END
     $self->ip_route("flush table ",$self->table($_)) foreach $self->isp_services;
 }
 
-sub _create_default_route {
+sub _create_default_multipath_route {
     my $self = shift;
-    my $D    = shift;
 
     my @up = $self->up;
 
@@ -1753,6 +1781,15 @@ sub _create_default_route {
 	$self->ip_route("add default via",$self->gw($up[0]),'dev',$self->dev($up[0]));
     }
 
+}
+
+sub _create_default_failover_route {
+    my $self = shift;
+
+    # choose the running interface with the greatest weight for our default interface
+    my @up = sort { $self->weight($b) <=> $self->weight($a) } $self->up;
+    print STDERR "# setting single default route via $up[0]n" if $self->verbose;
+    $self->ip_route("add default via",$self->gw($up[0]),'dev',$self->dev($up[0]));
 }
 
 sub _create_service_routing_tables {
@@ -1941,6 +1978,8 @@ rules for balancing outgoing connections.
 
 sub balancing_fw_rules {
     my $self = shift;
+
+    return unless $self->operating_mode eq 'balanced';
 
     print STDERR "# balancing FW rules\n" if $self->verbose;
 

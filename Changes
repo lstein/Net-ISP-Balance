@@ -1,3 +1,6 @@
+1.21    -Added a failover-only mode (add "mode=failover" to config file) for those
+	who want to use the failover feature without interface balancing.
+
 1.20	-Further changes to support pre-run scripts that bring up interfaces at
 	the last minute (e.g. openvpn)
 	-Added an example configuration for load balancing over two openvpn servers.

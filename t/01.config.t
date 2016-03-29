@@ -7,7 +7,7 @@ use strict;
 use FindBin '$Bin';
 use lib $Bin,"$Bin/../lib";
 
-use Test::More tests=>39;
+use Test::More tests=>44;
 
 my $dummy_data = {
     ip_addr_show =><<'EOF',
@@ -167,6 +167,25 @@ ok($output =~ m!ip route add 10.10.10.10/8 dev wlan0 table 1!,
    'add_route routing table');
 ok($output =~ m!iptables -I FORWARD -i eth1 -s 192.168.10.0/24 -o wlan0 -d 10.10.10.10/8 -j ACCEPT!,
    'add_route firewall');
+
+# now we test failover-only mode
+$bal = Net::ISP::Balance->new("$Bin/etc/balance_failover.conf",
+			      dummy_test_data=>$dummy_data,
+			      dev_lookup_retries=>1,
+    );
+ok($bal,"balancer failover mode object created");
+is($bal->operating_mode,'failover','get failover mode correctly');
+$bal->operating_mode('balanced');
+is($bal->operating_mode,'balanced','set failover mode correctly');
+$bal->operating_mode('failover');
+
+$bal->echo_only(1);
+$output = capture(sub {$bal->routing_rules});
+ok($output =~ /ip route add default via 191\.3\.88\.1 dev eth0/,
+   'failover mode produces one default route');
+$output = capture(sub {$bal->balancing_fw_rules});
+is($output,'','balancing rules not emitted in failover mode');
+
 1;
 
 exit 0;
