@@ -4,6 +4,7 @@ use strict;
 use Fcntl ':flock';
 use Carp 'croak','carp';
 use Data::Dumper;
+no warnings;
 
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
@@ -455,7 +456,7 @@ sub operating_mode {
     my $self = shift;
     my $d    = $self->{operating_mode};
     $self->{operating_mode} = shift if @_;
-    return 'failover' if $d =~ /failover/i;
+    return 'failover' if $d && $d =~ /failover/i;
     return 'balanced';
 }
 
@@ -520,7 +521,7 @@ The result code is the same as CORE::system().
 sub sh {
     my $self = shift;
     my @args  = @_;
-    my $arg   = join ' ',map {$_||''} @args; #quench uninit variable warnings
+    my $arg   = join ' ',@args;
     chomp($arg);
     carp $arg   if $self->verbose;
     if ($self->echo_only) {
@@ -955,7 +956,7 @@ Return list of service names that correspond to load-balanced ISPs.
 sub isp_services {
     my $self = shift;
     my @n    = $self->service_names;
-    return grep {$self->role($_)||'' eq 'isp'} @n; # kill uninit warning
+    return grep {$self->role($_) eq 'isp'} @n; # kill uninit warning
 }
 
 =head2 @names = $bal->lan_services
@@ -968,7 +969,7 @@ Return list of service names that correspond to lans.
 sub lan_services {
     my $self = shift;
     my @n    = $self->service_names;
-    return grep {$self->role($_)||'' eq 'lan'} @n; # kill uninit warning...
+    return grep {$self->role($_) eq 'lan'} @n; # kill uninit warning...
 }
 
 =head2 $state = $bal->event($service => $new_state)
