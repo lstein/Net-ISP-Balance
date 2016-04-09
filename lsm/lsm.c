@@ -2109,7 +2109,6 @@ static int probe_src_ip_addr(CONFIG *cur)
 		    return(2);
 		  }
 		  t->src = ((struct sockaddr_in*) &ifr.ifr_addr)->sin_addr;
-		  syslog(LOG_INFO,"ioctl probe of %s returned source address %s\n",cur->device,inet_ntoa(t->src));
 		}
 	} else if (pf == AF_INET6) { /* not AF_INET */
 		struct sockaddr_in6 saddr;

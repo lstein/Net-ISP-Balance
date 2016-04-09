@@ -281,9 +281,25 @@ exit 0;
 
 sub do_status {
     my $state = $bal->event();
-    for my $svc (sort $bal->isp_services) {
-	printf("%-15s %8s\n",$svc,$state->{$svc}||'unknown');
+    my @svc = sort $bal->isp_services;
+    printf("%-12s %-8s %-8s %-3s\n",
+	   'Service',
+	   'Device',
+	   'State',
+	   'Routing');
+    foreach (@svc) {
+	my $preferred = $bal->preferred_service;
+	my $routing   = $bal->operating_mode eq 'failover' ? $_ eq $preferred
+	                                                   : $state->{$_} eq 'up';
+	printf("%-12s %-8s %-8s %-3s\n",
+		   $_,
+		   $bal->dev($_),
+		   $state->{$_}||'unknown',
+		   $routing ? 'yes' : 'no',
+
+	    );
     }
+
     if ($< == 0)  { # running as root
 	kill(USR1 => `cat /var/run/lsm.pid`);
 	print STDERR "See syslog for detailed link monitoring information from lsm.\n";
