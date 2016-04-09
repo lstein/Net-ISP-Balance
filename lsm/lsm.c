@@ -1987,40 +1987,55 @@ static int open_icmp_sock(CONFIG *cur)
 #if defined(DEBUG)
 	if(cfg.debug >= 9) syslog(LOG_INFO, "%s: %s: probing for src ip for %s done", __FILE__, __FUNCTION__, cur->name);
 #endif
-	if(cur->sourceip && *cur->sourceip) {
-		if(cur->srcinfo->ai_family == AF_INET) {
-			struct sockaddr_in addr;
 
-			memset(&addr, 0, sizeof(addr));
-			addr.sin_family = AF_INET;
-			addr.sin_addr.s_addr = inet_addr(cur->sourceip);
-
-			if(bind(t->sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
-				syslog(LOG_ERR, "ping can't bind \"%s\"", strerror(errno));
-				return(1);
-			}
-		} else {
-			struct sockaddr_in6 addr;
-#if defined(DEBUG)
-			if(cfg.debug >= 9) syslog(LOG_INFO, "%s: %s: setting v6 src addr", __FILE__, __FUNCTION__);
-#endif
-			memset(&addr, 0, sizeof(addr));
-			addr.sin6_family = AF_INET6;
-			if(inet_pton(AF_INET6, cur->sourceip, &addr.sin6_addr) != 1) {
-				syslog(LOG_ERR, "ping6 failed to convert connection %s address %s", cur->name, cur->sourceip);
-				return(1);
-			}
-			if(bind(t->sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
-				syslog(LOG_ERR, "ping6 can't bind %s to %s, \"%s\"", cur->name, cur->sourceip, strerror(errno));
-				return(1);
-			}
-#if defined(DEBUG)
-			if(cfg.debug >= 9) syslog(LOG_INFO, "%s: %s: setting v6 src addr done", __FILE__, __FUNCTION__);
-#endif
-		}
+	// EXPERIMENTAL -LS
+	if (t->dst_addr.sin_family == AF_INET) {
+	  syslog(LOG_INFO,"binding %s to %s\n",cur->device,inet_ntoa(t->src));
+	  struct sockaddr_in addr;
+	  memset(&addr, 0, sizeof(addr));
+	  addr.sin_family = AF_INET;
+	  addr.sin_addr   = t->src;
+	  if(bind(t->sock, (struct sockaddr*) &addr, sizeof(addr)) != 0) {
+	    syslog(LOG_ERR, "ping can't bind \"%s\"", strerror(errno));
+	    return(1);
+	  }
 	}
 
-	if(pf == AF_INET6 && cur->device && *cur->device) {
+	// This seems unlikely to work....
+	else if(cur->sourceip && *cur->sourceip) {
+	    if(cur->srcinfo->ai_family == AF_INET) {
+	      struct sockaddr_in addr;
+	      
+	      memset(&addr, 0, sizeof(addr));
+	      addr.sin_family = AF_INET;
+	      addr.sin_addr.s_addr = inet_addr(cur->sourceip);
+	      
+	      if(bind(t->sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+		syslog(LOG_ERR, "ping can't bind \"%s\"", strerror(errno));
+		return(1);
+	      }
+	    } else {
+	      struct sockaddr_in6 addr;
+#if defined(DEBUG)
+	      if(cfg.debug >= 9) syslog(LOG_INFO, "%s: %s: setting v6 src addr", __FILE__, __FUNCTION__);
+#endif
+	      memset(&addr, 0, sizeof(addr));
+	      addr.sin6_family = AF_INET6;
+	      if(inet_pton(AF_INET6, cur->sourceip, &addr.sin6_addr) != 1) {
+		syslog(LOG_ERR, "ping6 failed to convert connection %s address %s", cur->name, cur->sourceip);
+		return(1);
+	      }
+	      if(bind(t->sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+		syslog(LOG_ERR, "ping6 can't bind %s to %s, \"%s\"", cur->name, cur->sourceip, strerror(errno));
+		return(1);
+	      }
+#if defined(DEBUG)
+	      if(cfg.debug >= 9) syslog(LOG_INFO, "%s: %s: setting v6 src addr done", __FILE__, __FUNCTION__);
+#endif
+	    }
+	  }
+
+	  if(pf == AF_INET6 && cur->device && *cur->device) {
 		struct ifreq ifr;
 		struct cmsghdr *cmsg;
 		struct in6_pktinfo *ipi;
