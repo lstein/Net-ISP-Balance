@@ -267,7 +267,12 @@ else {
     $bal->event($_ => 'down') foreach @down;
 }
 
-syslog('info',"Adjusting routing tables.");
+if ($bal->operating_mode eq 'failover') {
+    my $s = $bal->preferred_service;
+    syslog('info',"Setting default route to service %s, device %s",$s,$bal->dev($s));
+} else {
+    syslog('info',"Adjusting routing tables.");
+}
 $bal->set_routes_and_firewall();
 kill_lsm() unless @ARGV;
 start_or_reload_lsm($bal);

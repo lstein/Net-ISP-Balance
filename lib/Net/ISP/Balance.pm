@@ -9,7 +9,7 @@ no warnings;
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.21';
+our $VERSION    = '1.22';
 
 =head1 NAME
 
@@ -1786,11 +1786,22 @@ sub _create_default_multipath_route {
 
 sub _create_default_failover_route {
     my $self = shift;
+    my $preferred = $self->preferred_service;
+    print STDERR "# setting single default route via $preferred\n" if $self->verbose;
+    $self->ip_route("add default via",$self->gw($preferred),'dev',$self->dev($preferred));
+}
 
-    # choose the running interface with the greatest weight for our default interface
+=head2 $service = $bal->preferred_service
+
+Returns the preferred service, which is the currently running service with the highest weight. Used for
+failover mode.
+
+=cut
+
+sub preferred_service {
+    my $self = shift;
     my @up = sort { $self->weight($b) <=> $self->weight($a) } $self->up;
-    print STDERR "# setting single default route via $up[0]n" if $self->verbose;
-    $self->ip_route("add default via",$self->gw($up[0]),'dev',$self->dev($up[0]));
+    return $up[0];
 }
 
 sub _create_service_routing_tables {
