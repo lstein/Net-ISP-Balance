@@ -2,7 +2,7 @@
 
 Summary: The Link Status Monitor
 Name: lsm
-Version: 0.163
+Version: 0.163ls
 Release: 1%{?dist}
 License: GPLv2
 Group: System Environment/Daemons
