@@ -48,7 +48,11 @@ multi-connection file transfer protocols such as BitTorrent, will see
 the benefits of the load balancing.</p>
 
 <p>
-Alternatively, as of version 
+Alternatively, as of version 1.22, Net-ISP-Balance can run in
+failover-only mode, in which case there is only one active ISP
+connection at a time, but the system will sense when the active ISP is
+down and will failover to a backup. No load balancing is performed in
+this mode.
 </p>
 
 <p>This package runs on Linux systems, and will not work on Windows or
@@ -305,8 +309,12 @@ apportioned evenly between the two routes. Increase a weight to favor
 one ISP over the others. For example, if "CABLE" has a weight of 2 and
 "DSL" has a weight of 1, then twice as much traffic will flow through
 the CABLE service. If this column is omitted, then equal weights are
-assumed.
+assumed.</p>
 
+<p>When running in "failover" mode (see the <b>mode</b> option) then
+the weight is used to select which ISP to route through. The currently
+running interface with the highest assigned weight will be selected as
+the default outgoing interface.</p>
 
 <p>If this package is running on a single Internet-connected host, not
 a router, then do not include a "lan" line.</p>
@@ -316,6 +324,7 @@ of packet forwarding as well as link status monitoring. You
 may wish to uncomment and adjust these as well:</p>
 
 <pre>
+#mode=failover
 #forwarding_group=:lan :isp
 #warn_email=root@localhost
 #interval_ms=1000
@@ -328,6 +337,17 @@ may wish to uncomment and adjust these as well:</p>
 
 <div>
 <dl>
+  <dt><span style="font-weight:bold">mode</span></dt>
+  <dd>
+    The <span style="font-weight:bold">mode</span> option allows you
+    to select among the two operating modes, one of "balanced" (the
+    default) or "failover". In the latter case, all ISP interfaces
+    will be pinged periodically, but only the one that is up and
+    running and which has the highest weight will be selected for
+    network traffic. If the preferred ISP becomes inaccessible, then
+    the ISP interface with the next highest weight will be used until
+    such time as the preferred one becomes available again.
+  </dd>
   <dt><span style="font-weight:bold">forwarding_group</span></dt>
   <dd>
     <div>
