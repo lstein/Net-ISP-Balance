@@ -44,6 +44,7 @@ lsm/save_statuses.h
 lsm/shorewall_script
 lsm/signal_handler.c
 lsm/signal_handler.h
+lsm/test.conf
 lsm/timecalc.c
 lsm/timecalc.h
 MANIFEST			This list of files
@@ -57,4 +58,5 @@ t/etc/balance/firewall/02.accept.pl
 t/etc/balance/routes/01.local_routes.conf
 t/etc/balance/routes/02.local_routes.conf
 t/etc/balance/routes/03.local_rules.pl
+t/etc/balance_failover.conf
 t/etc/interfaces

@@ -76,6 +76,7 @@ static void dump_pkt(const void *buf, size_t len);
 
 static char *status_str[] = { "down", "up", "unknown", "long_down" };
 static int num_hosts = 0;
+struct sockaddr_in bind_addr;
 
 /* Main */
 int main(int argc, char *argv[]) {
@@ -1991,11 +1992,10 @@ static int open_icmp_sock(CONFIG *cur)
 	// EXPERIMENTAL -LS
 	if (t->dst_addr.sin_family == AF_INET) {
 	  syslog(LOG_INFO,"binding %s to %s\n",cur->device,inet_ntoa(t->src));
-	  struct sockaddr_in *addr = malloc(sizeof(struct sockaddr_in));
-	  memset(addr, 0, sizeof(*addr));
-	  addr->sin_family = AF_INET;
-	  addr->sin_addr   = t->src;
-	  if(bind(t->sock, addr, sizeof(struct sockaddr_in)) != 0) {
+	  memset(&bind_addr, 0, sizeof(bind_addr));
+	  bind_addr.sin_family = AF_INET;
+	  bind_addr.sin_addr   = t->src;
+	  if(bind(t->sock, &bind_addr, sizeof(bind_addr)) != 0) {
 	    syslog(LOG_ERR, "ping can't bind \"%s\"", strerror(errno));
 	    return(1);
 	  }
@@ -2004,12 +2004,10 @@ static int open_icmp_sock(CONFIG *cur)
 	// This seems unlikely to work....
 	else if(cur->sourceip && *cur->sourceip) {
 	    if(cur->srcinfo->ai_family == AF_INET) {
-	      struct sockaddr_in *addr = malloc(sizeof(struct sockaddr_in));
-	      memset(addr, 0, sizeof(*addr));
-	      addr->sin_family = AF_INET;
-	      addr->sin_addr.s_addr = inet_addr(cur->sourceip);
-	      
-	      if(bind(t->sock, addr, sizeof(*addr)) != 0) {
+	      memset(&bind_addr, 0, sizeof(bind_addr));
+	      bind_addr.sin_family      = AF_INET;
+	      bind_addr.sin_addr.s_addr = inet_addr(cur->sourceip);
+	      if(bind(t->sock, &bind_addr, sizeof(bind_addr)) != 0) {
 		syslog(LOG_ERR, "ping can't bind \"%s\"", strerror(errno));
 		return(1);
 	      }
