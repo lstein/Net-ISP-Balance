@@ -84,3 +84,8 @@
 \.sh
 ^lsm/lsm-debug\.conf
 ^lsm/lsm\.c\.orig
+
+^foo.pl
+^lsm/lsm-test\.conf
+^ppp/ip-down\.d/load_balance
+^ppp/ip-up\.d/load_balance

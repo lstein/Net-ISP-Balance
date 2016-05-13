@@ -1,3 +1,6 @@
+1.24    -Fixed bug that prevented load_balance.pl from executing properly after
+	a virgin install.
+
 1.23    -Fixed memory allocation bug that was causing random silent crashes in lsm.
 
 1.22    -Workaround for apparent lsm bug: binding to the device only doesn't allow ping
