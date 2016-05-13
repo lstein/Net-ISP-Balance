@@ -349,9 +349,11 @@ sub write_lsm_config {
     my $lsm_conf = $bal->lsm_conf_file();
 
     my $old_text = '';
-    open my $fh,$lsm_conf or die "$lsm_conf: $!";
-    $old_text .= $_ while <$fh>;
-    close $fh;
+    my $fh;
+    if (open $fh,$lsm_conf) {
+	$old_text .= $_ while <$fh>;
+	close $fh;
+    }
 
     my $new_text = $bal->lsm_config_text();
     return if $new_text eq $old_text;
