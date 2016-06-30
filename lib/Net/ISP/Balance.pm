@@ -9,7 +9,7 @@ no warnings;
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.24';
+our $VERSION    = '1.25';
 
 =head1 NAME
 
@@ -338,13 +338,12 @@ sub set_routes_and_firewall {
 
     $self->save_routing_and_firewall();
 
-    # first disable forwarding and clear the routing and firewall tables
+    # first disable forwarding
     $self->enable_forwarding(0);
-    $self->_initialize_routes();
-    $self->_initialize_firewall();
-    $self->pre_run_rules();
+
     $self->_collect_interfaces_retry();
     if ($self->isp_services) {
+	$self->pre_run_rules();
 	$self->set_routes();
 	$self->set_firewall();
 	$self->enable_forwarding(1);
@@ -1682,6 +1681,7 @@ needed to create the load balancing routing tables.
 
 sub set_routes {
     my $self = shift;
+    $self->_initialize_routes();
     $self->routing_rules();
     $self->local_routing_rules();
 }
@@ -1695,13 +1695,10 @@ needed to create the balancing firewall.
 
 sub set_firewall {
     my $self = shift;
-    if ($self->keep_custom_chains) {
-	$self->_save_custom_chains;
-	$self->base_fw_rules();
-	$self->_restore_custom_chains;
-    } else {
-	$self->base_fw_rules();
-    }
+    $self->_save_custom_chains    if $self->keep_custom_chains;
+    $self->_initialize_firewall();
+    $self->base_fw_rules();
+    $self->_restore_custom_chains if $self->keep_custom_chains;
     $self->balancing_fw_rules();  # WARNING: This is a null-op in "failover" mode
     $self->sanity_fw_rules();
     $self->nat_fw_rules();
