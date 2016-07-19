@@ -2094,7 +2094,7 @@ static int probe_src_ip_addr(CONFIG *cur)
 		memset(&saddr, 0, sizeof(saddr));
 		saddr.sin_family = AF_INET;
 		if(t->src.s_addr) {
-		  syslog(LOG_INFO,"reusing previously assigned address for \"%s\"",cur->device);		  
+		  syslog(LOG_INFO,"reusing previously assigned address for \"%s\" (%s)",cur->device,inet_ntoa(t->src));
 		  saddr.sin_addr = t->src;
 		  if(bind(probe_fd, (struct sockaddr*)&saddr, sizeof(saddr)) == -1) {
 		    syslog(LOG_ERR, "ping probe bind failed for %s \"%s\"", cur->name, strerror(errno));
@@ -2103,6 +2103,7 @@ static int probe_src_ip_addr(CONFIG *cur)
 		    memset(&t->src, 0, sizeof(t->src));
 		    return(2);
 		  }
+		  syslog(LOG_INFO,"reuse was successful");
 		}
 		else { /* LS -- modified original logic to use SIOCGIFADDR ioctl to get interface address instead of relying on routing */
 		  syslog(LOG_INFO,"using SIOCGIFADDR ioctl to get interface address for \"%s\"",cur->device);
