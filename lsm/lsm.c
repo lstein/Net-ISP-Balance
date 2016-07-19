@@ -76,7 +76,7 @@ static void dump_pkt(const void *buf, size_t len);
 
 static char *status_str[] = { "down", "up", "unknown", "long_down" };
 static int num_hosts = 0;
-struct sockaddr_in bind_addr;
+static struct sockaddr_in bind_addr;
 
 /* Main */
 int main(int argc, char *argv[]) {
@@ -224,7 +224,9 @@ int main(int argc, char *argv[]) {
 			if(cur->check_arp) {
 				open_arp_sock(cur);
 			} else {
-				open_icmp_sock(cur);
+			  syslog(LOG_INFO,"calling open_icmp_sock(cur)");
+			  open_icmp_sock(cur);
+			  syslog(LOG_INFO,"successful return from open_icmp_sock(cur)");
 			}
 
 			if(ping_send(cur)) {
@@ -1676,30 +1678,32 @@ static int open_arp_sock(CONFIG *cur)
 	}
 
 	if(inet_aton(cur->checkip, &t->dst) != 1) {
-		struct hostent *hp;
-		hp = gethostbyname2(cur->checkip, AF_INET);
-		if(!hp) {
-			syslog(LOG_ERR, "unknown host %s\n", cur->checkip);
-			close(t->sock);
-			t->sock = -1;
-			return(2);
-		}
-		memcpy(&t->dst, hp->h_addr, 4);
+	  struct hostent *hp;
+	  hp = gethostbyname2(cur->checkip, AF_INET);
+	  if(!hp) {
+	    syslog(LOG_ERR, "unknown host %s\n", cur->checkip);
+	    close(t->sock);
+	    t->sock = -1;
+	    return(2);
+	  }
+	  memcpy(&t->dst, hp->h_addr, 4);
 	}
 
 	if(cur->sourceip && *cur->sourceip)
 		if(inet_aton(cur->sourceip, &t->src) != 1) {
-			syslog(LOG_ERR, "invalid source %s\n", cur->sourceip);
-			close(t->sock);
-			t->sock = -1;
-			return(2);
+		  syslog(LOG_ERR, "invalid source %s\n", cur->sourceip);
+		  close(t->sock);
+		  t->sock = -1;
+		  return(2);
 		}
 
+	syslog(LOG_INFO,"attempting to probe IP address of device \"%s\"",cur->device);
 	if(probe_src_ip_addr(cur) != 0) {
-		close(t->sock);
-		t->sock = -1;
-		return(2);
+	  close(t->sock);
+	  t->sock = -1;
+	  return(2);
 	}
+	syslog(LOG_INFO,"successfully probed IP address of device \"%s\": got \"%s\"",cur->device,inet_ntoa(t->src));
 
 	t->me.sll_family = AF_PACKET;
 	t->me.sll_ifindex = ifindex;
@@ -1969,12 +1973,13 @@ static int open_icmp_sock(CONFIG *cur)
 	   We achieve the same effect by binding to the device's IP address later in probe_src_ip_addr().
 	*/
 	if(pf == AF_INET && cur->device && *cur->device && !strchr(cur->device,':')) {
-		if(setsockopt(t->sock, SOL_SOCKET, SO_BINDTODEVICE, cur->device, strlen(cur->device) + 1) == -1) {
-			syslog(LOG_INFO, "failed to bind to ping interface device \"%s\", \"%s\"", cur->device, strerror(errno));
-			close(t->sock);
-			t->sock = -1;
-			return(2);
-		}
+	  syslog(LOG_INFO,"calling setsockopt to bind to device \"%s\"",cur->device);
+	  if(setsockopt(t->sock, SOL_SOCKET, SO_BINDTODEVICE, cur->device, strlen(cur->device) + 1) == -1) {
+	    syslog(LOG_INFO, "failed to bind to ping interface device \"%s\", \"%s\"", cur->device, strerror(errno));
+	    close(t->sock);
+	    t->sock = -1;
+	    return(2);
+	  }
 	}
 
 #if defined(DEBUG)
@@ -2000,62 +2005,63 @@ static int open_icmp_sock(CONFIG *cur)
 	    return(1);
 	  }
 	}
-
+	
 	// This seems unlikely to work....
 	else if(cur->sourceip && *cur->sourceip) {
-	    if(cur->srcinfo->ai_family == AF_INET) {
-	      memset(&bind_addr, 0, sizeof(bind_addr));
-	      bind_addr.sin_family      = AF_INET;
-	      bind_addr.sin_addr.s_addr = inet_addr(cur->sourceip);
-	      if(bind(t->sock, &bind_addr, sizeof(bind_addr)) != 0) {
-		syslog(LOG_ERR, "ping can't bind \"%s\"", strerror(errno));
-		return(1);
-	      }
-	    } else {
-	      struct sockaddr_in6 addr;
-#if defined(DEBUG)
-	      if(cfg.debug >= 9) syslog(LOG_INFO, "%s: %s: setting v6 src addr", __FILE__, __FUNCTION__);
-#endif
-	      memset(&addr, 0, sizeof(addr));
-	      addr.sin6_family = AF_INET6;
-	      if(inet_pton(AF_INET6, cur->sourceip, &addr.sin6_addr) != 1) {
-		syslog(LOG_ERR, "ping6 failed to convert connection %s address %s", cur->name, cur->sourceip);
-		return(1);
-	      }
-	      if(bind(t->sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
-		syslog(LOG_ERR, "ping6 can't bind %s to %s, \"%s\"", cur->name, cur->sourceip, strerror(errno));
-		return(1);
-	      }
-#if defined(DEBUG)
-	      if(cfg.debug >= 9) syslog(LOG_INFO, "%s: %s: setting v6 src addr done", __FILE__, __FUNCTION__);
-#endif
+	  syslog(LOG_INFO,"using sourceip-based binding of %s to %s\n",cur->device,cur->sourceip);
+	  if(cur->srcinfo->ai_family == AF_INET) {
+	    memset(&bind_addr, 0, sizeof(bind_addr));
+	    bind_addr.sin_family      = AF_INET;
+	    bind_addr.sin_addr.s_addr = inet_addr(cur->sourceip);
+	    if(bind(t->sock, &bind_addr, sizeof(bind_addr)) != 0) {
+	      syslog(LOG_ERR, "ping can't bind \"%s\"", strerror(errno));
+	      return(1);
 	    }
+	  } else {
+	    struct sockaddr_in6 addr;
+#if defined(DEBUG)
+	    if(cfg.debug >= 9) syslog(LOG_INFO, "%s: %s: setting v6 src addr", __FILE__, __FUNCTION__);
+#endif
+	    memset(&addr, 0, sizeof(addr));
+	    addr.sin6_family = AF_INET6;
+	    if(inet_pton(AF_INET6, cur->sourceip, &addr.sin6_addr) != 1) {
+	      syslog(LOG_ERR, "ping6 failed to convert connection %s address %s", cur->name, cur->sourceip);
+	      return(1);
+	    }
+	    if(bind(t->sock, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+	      syslog(LOG_ERR, "ping6 can't bind %s to %s, \"%s\"", cur->name, cur->sourceip, strerror(errno));
+	      return(1);
+	    }
+#if defined(DEBUG)
+	    if(cfg.debug >= 9) syslog(LOG_INFO, "%s: %s: setting v6 src addr done", __FILE__, __FUNCTION__);
+#endif
+	  }
+	}
+
+	if(pf == AF_INET6 && cur->device && *cur->device) {
+	  struct ifreq ifr;
+	  struct cmsghdr *cmsg;
+	  struct in6_pktinfo *ipi;
+	  
+	  memset(&ifr, 0, sizeof(ifr));
+	  strncpy(ifr.ifr_name, cur->device, IFNAMSIZ-1);
+	  if(ioctl(t->sock, SIOCGIFINDEX, &ifr) < 0) {
+	    syslog(LOG_ERR, "ping6 unknown iface %s", cur->device);
+	    return(2);
 	  }
 
-	  if(pf == AF_INET6 && cur->device && *cur->device) {
-		struct ifreq ifr;
-		struct cmsghdr *cmsg;
-		struct in6_pktinfo *ipi;
+	  memset(&t->cmsgbuf, 0, sizeof(t->cmsgbuf));
+	  t->cmsglen = 0;
 
-		memset(&ifr, 0, sizeof(ifr));
-		strncpy(ifr.ifr_name, cur->device, IFNAMSIZ-1);
-		if(ioctl(t->sock, SIOCGIFINDEX, &ifr) < 0) {
-			syslog(LOG_ERR, "ping6 unknown iface %s", cur->device);
-			return(2);
-		}
-
-		memset(&t->cmsgbuf, 0, sizeof(t->cmsgbuf));
-		t->cmsglen = 0;
-
-		cmsg = (struct cmsghdr *)t->cmsgbuf;
-		t->cmsglen += CMSG_SPACE(sizeof(*ipi));
-		cmsg->cmsg_len = CMSG_LEN(sizeof(*ipi));
-		cmsg->cmsg_level = SOL_IPV6;
-		cmsg->cmsg_type = IPV6_PKTINFO;
-
-		ipi = (struct in6_pktinfo *)CMSG_DATA(cmsg);
-		memset(ipi, 0, sizeof(*ipi));
-		ipi->ipi6_ifindex = ifr.ifr_ifindex;
+	  cmsg = (struct cmsghdr *)t->cmsgbuf;
+	  t->cmsglen += CMSG_SPACE(sizeof(*ipi));
+	  cmsg->cmsg_len = CMSG_LEN(sizeof(*ipi));
+	  cmsg->cmsg_level = SOL_IPV6;
+	  cmsg->cmsg_type = IPV6_PKTINFO;
+	  
+	  ipi = (struct in6_pktinfo *)CMSG_DATA(cmsg);
+	  memset(ipi, 0, sizeof(*ipi));
+	  ipi->ipi6_ifindex = ifr.ifr_ifindex;
 	}
 
 	return(0);
@@ -2087,16 +2093,18 @@ static int probe_src_ip_addr(CONFIG *cur)
 		memset(&saddr, 0, sizeof(saddr));
 		saddr.sin_family = AF_INET;
 		if(t->src.s_addr) {
-			saddr.sin_addr = t->src;
-			if(bind(probe_fd, (struct sockaddr*)&saddr, sizeof(saddr)) == -1) {
-				syslog(LOG_ERR, "ping probe bind failed for %s \"%s\"", cur->name, strerror(errno));
-				close(probe_fd);
-				/* earlier probed src addr is not usable, wipe it */
-				memset(&t->src, 0, sizeof(t->src));
-				return(2);
-			}
+		  syslog(LOG_INFO,"reusing previously assigned address for \"%s\"",cur->device);		  
+		  saddr.sin_addr = t->src;
+		  if(bind(probe_fd, (struct sockaddr*)&saddr, sizeof(saddr)) == -1) {
+		    syslog(LOG_ERR, "ping probe bind failed for %s \"%s\"", cur->name, strerror(errno));
+		    close(probe_fd);
+		    /* earlier probed src addr is not usable, wipe it */
+		    memset(&t->src, 0, sizeof(t->src));
+		    return(2);
+		  }
 		}
 		else { /* LS -- modified original logic to use SIOCGIFADDR ioctl to get interface address instead of relying on routing */
+		  syslog(LOG_INFO,"using SIOCGIFADDR ioctl to get interface address for \"%s\"",cur->device);
 		  struct ifreq ifr;
 		  bzero((void*)&ifr,sizeof(struct ifreq));
 		  strncpy(ifr.ifr_name,cur->device,IFNAMSIZ-1);
