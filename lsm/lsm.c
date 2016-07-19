@@ -224,9 +224,7 @@ int main(int argc, char *argv[]) {
 			if(cur->check_arp) {
 				open_arp_sock(cur);
 			} else {
-			  syslog(LOG_INFO,"calling open_icmp_sock(cur)");
 			  open_icmp_sock(cur);
-			  syslog(LOG_INFO,"successful return from open_icmp_sock(cur)");
 			}
 
 			if(ping_send(cur)) {
@@ -1980,6 +1978,7 @@ static int open_icmp_sock(CONFIG *cur)
 	    t->sock = -1;
 	    return(2);
 	  }
+	  syslog(LOG_INFO,"calling setsockopt was successful");
 	}
 
 #if defined(DEBUG)
@@ -2004,6 +2003,7 @@ static int open_icmp_sock(CONFIG *cur)
 	    syslog(LOG_ERR, "ping can't bind \"%s\"", strerror(errno));
 	    return(1);
 	  }
+	  syslog(LOG_INFO,"binding was successful");
 	}
 	
 	// This seems unlikely to work....
@@ -2017,6 +2017,7 @@ static int open_icmp_sock(CONFIG *cur)
 	      syslog(LOG_ERR, "ping can't bind \"%s\"", strerror(errno));
 	      return(1);
 	    }
+	    syslog(LOG_INFO,"sourceip-based binding was successful");	    
 	  } else {
 	    struct sockaddr_in6 addr;
 #if defined(DEBUG)
