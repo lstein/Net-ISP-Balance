@@ -227,6 +227,8 @@ END { do_unlock($lock_fh); }
 
 openlog('load_balance.pl','ndelay,pid','local0');
 
+syslog('info',"Invoking load_balance.pl @ARGV");
+
 my $bal = eval {Net::ISP::Balance->new()};
 
 fatal_error("Could not initialize balancer; maybe some interfaces are unavailable? Error message=$@")
@@ -329,6 +331,8 @@ sub start_or_reload_lsm {
     chomp($lsm_pid);
 
     my $lsm_running = $lsm_pid && kill(0=>$lsm_pid);
+
+    syslog('info','start_or_reload_lsm: lsm '.($lsm_running? 'IS' : 'IS NOT').' running');
 
     if (!$lsm_running) {
 	print STDERR  "Starting lsm link status monitoring daemon\n";    
