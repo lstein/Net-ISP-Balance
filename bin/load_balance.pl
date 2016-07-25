@@ -200,6 +200,12 @@ use Pod::Usage 'pod2usage';
 use constant LOCK_TIMEOUT => 30;  # if two processes running simultaneously, length of time second will wait for first
 
 my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP,$FLUSH,$VERSION);
+
+openlog('load_balance.pl','ndelay,pid','local0');
+syslog('info',"Invoking load_balance.pl @ARGV");
+
+# command line arguments correspond to the ISP services (defined in the config file)
+# that are "up". LAN services are assumed to be always up.
 my $result = GetOptions('debug' => \$DEBUG,
 			'verbose'=>\$VERBOSE,
 			'Version'=>\$VERSION,
@@ -221,13 +227,6 @@ if ($VERSION) {
 
 my $lock_fh = do_lock();
 END { do_unlock($lock_fh); }
-
-# command line arguments correspond to the ISP services (defined in the config file)
-# that are "up". LAN services are assumed to be always up.
-
-openlog('load_balance.pl','ndelay,pid','local0');
-
-syslog('info',"Invoking load_balance.pl @ARGV");
 
 my $bal = eval {Net::ISP::Balance->new()};
 
