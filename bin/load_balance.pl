@@ -275,7 +275,6 @@ if ($bal->operating_mode eq 'failover') {
     syslog('info',"Adjusting routing tables.");
 }
 $bal->set_routes_and_firewall();
-kill_lsm() unless @ARGV;
 start_or_reload_lsm($bal);
 
 exit 0;
