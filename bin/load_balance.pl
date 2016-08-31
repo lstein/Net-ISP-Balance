@@ -337,7 +337,7 @@ sub start_or_reload_lsm {
 	syslog('info',"Starting lsm link status monitoring daemon");    
 	$bal->start_lsm();
     }
-    elsif ($ARGV[0] && $ARGV[0] eq 'long_down') {
+    elsif ($config_changed || ($ARGV[0] && $ARGV[0] eq 'long_down')) {
 	print STDERR  "Reloading lsm link status monitoring daemon\n";    
 	syslog('info',"Reloading lsm link status monitoring daemon");    
 	kill(HUP => $lsm_pid);
