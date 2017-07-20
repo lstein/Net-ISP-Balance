@@ -83,6 +83,7 @@ my $build = $class->new(
 	'perl'        => '5.8.0',
 	'Net::Netmask'  => 0,
 	'Pod::Usage'    => 0,
+	'DB_File'       => 0,
     },
     );
 

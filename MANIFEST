@@ -44,7 +44,6 @@ lsm/save_statuses.h
 lsm/shorewall_script
 lsm/signal_handler.c
 lsm/signal_handler.h
-lsm/test.conf
 lsm/timecalc.c
 lsm/timecalc.h
 MANIFEST			This list of files

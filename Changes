@@ -1,3 +1,6 @@
+1.26	-Experimental code to persist routing information in the event that an interface's
+         gateway is located at an odd IP address (not the first) and is configured statically.
+
 1.25    -Fixed bug that caused custom chains to be overwritten when load_balance restarted.
 
 1.24    -Fixed bug that prevented load_balance.pl from executing properly after

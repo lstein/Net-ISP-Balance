@@ -4,12 +4,16 @@ use strict;
 use Fcntl ':flock';
 use Carp 'croak','carp';
 use Data::Dumper;
+use DB_File;
+use Fcntl 'O_CREAT','O_RDWR';
 no warnings;
 
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.25';
+our $VERSION    = '1.26';
+
+use constant STATIC_GATEWAY => '/tmp/load-balance_gateways.db';
 
 =head1 NAME
 
@@ -1591,6 +1595,9 @@ sub interface_info {
 	    $gws{$vdev}  = $gateway;
 	}
     }
+
+    $self->_set_static_gateway(\%gws);
+    
     for my $dev (keys %ifs) {
 	my $info      = $ifs{$dev};
 	my $running   = $info =~ /[<,]UP[,>]/;
@@ -1599,7 +1606,10 @@ sub interface_info {
 	    my $addr  = $vif{$dev}{$vdev}{addr};
 	    my $block = $vif{$dev}{$vdev}{block};
 	    my $net   = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
-	    my $gw    = $gws{$dev}  || $peer || $self->_dhcp_gateway($dev) || $block->nth(1);
+	    my $gw    = $gws{$dev}  || $peer 
+		                    || $self->_dhcp_gateway($dev) 
+		                    || $self->_get_static_gateway($dev) # last valid value
+				    || $block->nth(1);                  # this guess is correct >95% of time
 
 	    # copy into hash passed to us
 	    $results{$vdev} = {
@@ -1642,6 +1652,43 @@ sub _dhcp_gateway {
 	$gw = $1 if /option routers (\S+)[,;]/;
     }
     return $gw;
+}
+
+#
+# The next three methods maintain a persistent cache that maps devices to gateways
+# to deal with situations in which the gateway is located at an unusual place in the
+# address space and cannot be recovered from the dhcp information.
+#
+sub _static_gateway_hash {
+    my $self = shift;
+    my $h    = $self->{_static_gateway_hash};
+    unless ($h) {
+	my %hash;
+	unless (tie %hash,'DB_File',STATIC_GATEWAY,O_CREAT|O_RDWR,0600,$DB_HASH) {
+	    print STDERR " #Couldn't open cache file for static gateway: ",STATIC_GATEWAY,": $!\n";
+	    return;
+	}
+	$h = \%hash;
+    }
+    return $self->{_static_gateway_hash} = $h;
+}
+
+sub _set_static_gateway {
+    my $self = shift;
+    my $gws  = shift;  # { dev=>gw_ip }
+    my $h = $self->_static_gateway_hash();
+    # we do a key-by-key copy so as to retain information on devices
+    # that may currently be down.
+    for my $dev (keys %$gws) {
+	$h->{$dev} = $gws->{$dev};
+    }
+}
+
+sub _get_static_gateway {
+    my $self = shift;
+    my $dev  = shift;
+    my $h = $self->_static_gateway_hash();
+    return $h->{$dev};
 }
 
 sub _open_dhclient_leases {
