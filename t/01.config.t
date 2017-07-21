@@ -7,7 +7,7 @@ use strict;
 use FindBin '$Bin';
 use lib $Bin,"$Bin/../lib";
 
-use Test::More tests=>44;
+use Test::More tests=>45;
 
 my $dummy_data = {
     ip_addr_show =><<'EOF',
@@ -46,6 +46,11 @@ my $dummy_data = {
 8: ppp0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1492 qdisc pfifo_fast state UNKNOWN qlen 3
     link/ppp 
     inet 11.120.199.108 peer 112.211.154.198/32 scope global ppp0
+9: eth5: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP qlen 1000
+    link/ether 48:f8:b3:2e:f6:b4 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.20.1/24 brd 192.168.20.255 scope global eth5
+    inet6 fe80::4af8:b3ff:fe2e:f6b2/64 scope link 
+       valid_lft forever preferred_lft forever
 31: tun0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UNKNOWN qlen 100
     link/none 
     inet 10.8.0.1 peer 10.8.0.2/32 scope global tun0
@@ -75,7 +80,7 @@ ok($bal,"balancer object created");
 
 my $i = $bal->services;
 my @s = sort keys %$i;
-is("@s",'CABLE DSL LAN SUBNET VPN VSUBNET',"six services created");
+is("@s",'CABLE DSL FALLBACK LAN SUBNET VPN VSUBNET',"six services created");
 
 is($i->{DSL}{dev},'ppp0','correct mapping of service to ppp device');
 is($i->{CABLE}{dev},'eth0','correct mapping of service to eth device');
@@ -84,6 +89,7 @@ is($i->{CABLE}{ip},'191.3.88.152','correct mapping of dhcp service to ip');
 is($i->{LAN}{ip},'192.168.10.1','correct mapping of static service to ip');
 is($i->{DSL}{gw},'112.211.154.198','correct mapping of ppp service to gw');
 is($i->{CABLE}{gw},'191.3.88.1','correct mapping of dhcp service to gw');
+is($i->{FALLBACK}{gw},'192.168.20.254','correct mapping of a manually defined gateway');
 is($i->{VPN}{net},'10.8.0.0/24','correct network for VPN device derived from routing table');
 is($i->{SUBNET}{ip},'192.168.12.1','correct address of eth3 base device');
 is($i->{VSUBNET}{ip},'192.168.13.1','correct address of eth3:0 virtual device');
@@ -115,7 +121,7 @@ ok($output=~m!echo "01 local routing rules go here"! &&
 ok($output=~m!debug: CABLE=>dev=eth0\ndebug: DSL=>dev=ppp0!,'perl local rules working');
 
 $output = capture(sub {$bal->balancing_fw_rules});
-ok($output=~m/iptables -t mangle -A PREROUTING -i eth1 -s 192\.168\.10\.0\/24 -m conntrack --ctstate NEW -m statistic --mode random --probability 0\.5 -j MARK-CABLE/,'balancing firewall rules produce correct mangle');
+ok($output=~m/iptables -t mangle -A PREROUTING -i eth1 -s 192\.168\.10\.0\/24 -m conntrack --ctstate NEW -m statistic --mode random --probability 0\.5 -j MARK-DSL/,'balancing firewall rules produce correct mangle');
 
 $bal->up('CABLE');
 $output = capture(sub {$bal->balancing_fw_rules});

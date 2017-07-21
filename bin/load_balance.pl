@@ -133,9 +133,9 @@ balance.conf is the main configuration file. It defines the interfaces
 connected to the ISPs and to the LAN (if running on a router). Here is
 a typical example:
 
- #service    device   role     ping-ip
- CABLE       eth0     isp      173.194.43.95
- DSL         eth1     isp      173.194.43.95
+ #service    device   role     ping-ip         weight  gateway
+ CABLE       eth0     isp      173.194.43.95     1     default
+ DSL         eth1     isp      173.194.43.95     1     default
  LAN         eth2     lan      
 
  # name=value pairs define lsm configuration variables
@@ -158,14 +158,31 @@ these. The script will load balance traffic across all ISPs, and will
 act as a firewall between the LAN (if any) and the Internet. You do
 not need to have a "lan" entry if this is a standalone host.
 
-The fourth and last column is the IP address of a host that can be
+The fourth column (optional) is the IP address of a host that can be
 periodically pinged to test the integrity of each ISP connection. If
 too many pings failed, the service will be brought down and all
 traffic routed through the remaining ISP(s). The service will continue
 to be monitored and will be brought up when it is once again
 working. Choose a host that is not likely to go offline for reasons
 unrelated to your network connectivity, such as google.com, or the
-ISP's web site.
+ISP's web site. If this column is absent or marked "default", then the
+host will default to www.google.ca.
+
+The fifth column (optional) is a weight to assign to the service, and
+is only valid for ISP rows. If weights are equal, traffic will be
+apportioned evenly between the two routes. Increase a weight to favor
+one ISP over the others. For example, if "CABLE" has a weight of 2 and
+"DSL" has a weight of 1, then twice as much traffic will flow through
+the CABLE service. If this column is omitted or marked "default", then
+equal weights are assumed.
+
+The sixth column (optional) is the IP address for the gateway host for
+this service.  If absent or named "default", the system will attempt
+to guess the proper gateway automatically. Note the guessing algorithm
+relies on the fact that the gateway is almost always the first address
+in the IP range for the subnetwork. If this is not the case, then
+routing through the interface won't work properly. Add the correct
+gateway IP address manually to correct this.
 
 The second (optional) part of the configuration file is a series of
 name=value pairs that allow you to customize the behavior of lsm, such
@@ -180,7 +197,7 @@ L<Net::ISP::Balance>
 
 Lincoln Stein, lincoln.stein@gmail.com
 
-Copyright (c) 2014 Lincoln D. Stein
+Copyright (c) 2014-2017 Lincoln D. Stein
                                                                                 
 This package and its accompanying libraries is free software; you can
 redistribute it and/or modify it under the terms of the GPL (either

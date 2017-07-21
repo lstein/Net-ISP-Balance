@@ -1,5 +1,8 @@
-1.26	-Experimental code to persist routing information in the event that an interface's
-         gateway is located at an odd IP address (not the first) and is configured statically.
+1.26    -Expanded configuration file to allow the gateway for an
+      	 interface to be set explicitly, rather than guessed. This
+	 fixes provlems on systems where the gateway is set to an odd
+      	 location (e.g. at the top of the network IP address range
+      	 rather than the bottom).
 
 1.25    -Fixed bug that caused custom chains to be overwritten when load_balance restarted.
 

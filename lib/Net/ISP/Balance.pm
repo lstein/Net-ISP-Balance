@@ -4,16 +4,12 @@ use strict;
 use Fcntl ':flock';
 use Carp 'croak','carp';
 use Data::Dumper;
-use DB_File;
-use Fcntl 'O_CREAT','O_RDWR';
 no warnings;
 
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
 our $VERSION    = '1.26';
-
-use constant STATIC_GATEWAY => '/tmp/load-balance_gateways.db';
 
 =head1 NAME
 
@@ -74,8 +70,8 @@ at http://lstein.github.io/Net-ISP-Balance/.
 
 This module reads a configuration file with the following format:
 
- #service    device   role     ping-ip           weight
- CABLE        eth0     isp      173.194.43.95     1
+ #service    device   role     ping-ip           weight    gateway
+ CABLE        eth0     isp      173.194.43.95     1        173.193.43.1
  DSL          ppp0     isp      173.194.43.95     1
  LAN1         eth1     lan                        
  LAN2         eth2     lan                        
@@ -93,23 +89,31 @@ these. The script will firewall traffic passing through any of the
 ISPs, and will load balance traffic among them. Traffic can flow
 freely among any of the interfaces marked as belonging to a LAN.
 
-The fourth column is the IP address of a host that can be periodically
-pinged to test the integrity of each ISP connection. If too many pings
-failed, the service will be brought down and all traffic routed
-through the remaining ISP(s). The service will continue to be
-monitored and will be brought up when it is once again working. Choose
-a host that is not likely to go offline for reasons unrelated to your
-network connectivity, such as google.com, or the ISP's web site. If
-this column is absent, then the host will default to www.google.ca,
-which is probably not what you want!
+The fourth column (optional) is the IP address of a host that can be
+periodically pinged to test the integrity of each ISP connection. If
+too many pings failed, the service will be brought down and all
+traffic routed through the remaining ISP(s). The service will continue
+to be monitored and will be brought up when it is once again
+working. Choose a host that is not likely to go offline for reasons
+unrelated to your network connectivity, such as google.com, or the
+ISP's web site. If this column is absent or marked "default", then the
+host will default to www.google.ca.
 
 The fifth column (optional) is a weight to assign to the service, and
 is only valid for ISP rows. If weights are equal, traffic will be
 apportioned evenly between the two routes. Increase a weight to favor
 one ISP over the others. For example, if "CABLE" has a weight of 2 and
 "DSL" has a weight of 1, then twice as much traffic will flow through
-the CABLE service. If this column is omitted, then equal weights are
-assumed.
+the CABLE service. If this column is omitted or marked "default", then
+equal weights are assumed.
+
+The sixth column (optional) is the gateway for this service using
+dotted IP notation. If absent or named "default", the system will
+attempt to determine the proper gateway automatically. Note the
+algorithm relies on the fact that the gateway is almost always the
+first address in the IP range for the subnetwork. If this is not the
+case, then routing through the interface won't work properly. Add the
+correct gateway IP address manually to correct this.
 
 If this package is running on a single Internet-connected host, not a
 router, then do not include a "lan" line.
@@ -1447,14 +1451,20 @@ sub _parse_configuration_file {
 	    $lsm_options{"-${1}"} = $2;
 	    next;
 	}
-	my ($service,$device,$role,$ping_dest,$weight) = split /\s+/;
+	my ($service,$device,$role,$ping_dest,$weight,$gateway) = split /\s+/;
 	next unless $service && $device && $role;
 	croak "load_balance.conf line $.: A service can not be named 'up' or 'down'"
 	    if $service=~/^(up|down)$/;
-	$services{$service}{dev}   = $device;
-	$services{$service}{role}  = $role;
-	$services{$service}{ping}  = $ping_dest  || 'www.google.ca';
-	$services{$service}{weight}= $weight     || 1;
+
+	foreach (\$ping_dest,\$weight,\$gateway) {
+	    undef $$_ if $$_ eq 'default';
+	}
+		
+	$services{$service}{dev}    = $device;
+	$services{$service}{role}   = $role;
+	$services{$service}{ping}   = $ping_dest  || 'www.google.ca';
+	$services{$service}{weight} = $weight     || 1;
+	$services{$service}{gateway}= $gateway;
     }
     close $f;
     $self->{svc_config}        = \%services;
@@ -1505,7 +1515,7 @@ sub _collect_interfaces {
 	$interface_info->{$svc} = {
 	    dev     => $dev,    # otherwise, iptables will croak!!!
 	    running => $info->{running},
-	    gw      => $info->{gw},
+	    gw      => $s->{$svc}{gateway} || $info->{gw},
 	    net     => $info->{net},
 	    ip      => $info->{ip},
 	    fwmark  => $role eq 'isp' ? ++$counter : undef,
@@ -1596,8 +1606,6 @@ sub interface_info {
 	}
     }
 
-    $self->_set_static_gateway(\%gws);
-    
     for my $dev (keys %ifs) {
 	my $info      = $ifs{$dev};
 	my $running   = $info =~ /[<,]UP[,>]/;
@@ -1607,8 +1615,7 @@ sub interface_info {
 	    my $block = $vif{$dev}{$vdev}{block};
 	    my $net   = $nets{$dev} || ($peer?"$peer/32":undef) || "$block";
 	    my $gw    = $gws{$dev}  || $peer 
-		                    || $self->_dhcp_gateway($dev) 
-		                    || $self->_get_static_gateway($dev) # last valid value
+		                    || $self->_dhcp_gateway($dev)
 				    || $block->nth(1);                  # this guess is correct >95% of time
 
 	    # copy into hash passed to us
@@ -1652,43 +1659,6 @@ sub _dhcp_gateway {
 	$gw = $1 if /option routers (\S+)[,;]/;
     }
     return $gw;
-}
-
-#
-# The next three methods maintain a persistent cache that maps devices to gateways
-# to deal with situations in which the gateway is located at an unusual place in the
-# address space and cannot be recovered from the dhcp information.
-#
-sub _static_gateway_hash {
-    my $self = shift;
-    my $h    = $self->{_static_gateway_hash};
-    unless ($h) {
-	my %hash;
-	unless (tie %hash,'DB_File',STATIC_GATEWAY,O_CREAT|O_RDWR,0600,$DB_HASH) {
-	    print STDERR " #Couldn't open cache file for static gateway: ",STATIC_GATEWAY,": $!\n";
-	    return;
-	}
-	$h = \%hash;
-    }
-    return $self->{_static_gateway_hash} = $h;
-}
-
-sub _set_static_gateway {
-    my $self = shift;
-    my $gws  = shift;  # { dev=>gw_ip }
-    my $h = $self->_static_gateway_hash();
-    # we do a key-by-key copy so as to retain information on devices
-    # that may currently be down.
-    for my $dev (keys %$gws) {
-	$h->{$dev} = $gws->{$dev};
-    }
-}
-
-sub _get_static_gateway {
-    my $self = shift;
-    my $dev  = shift;
-    my $h = $self->_static_gateway_hash();
-    return $h->{$dev};
 }
 
 sub _open_dhclient_leases {
