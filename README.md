@@ -76,9 +76,9 @@ Then edit it to meet your needs. The core of the file looks like this:
 
 <i>/etc/network/balance.conf /etc/sysconfig/network-scripts/balance.conf</i>
 <pre>
- #service    device   role     ping-ip         weight
- CABLE	    eth0     isp      173.194.43.95    1
- DSL	    eth1     isp      173.194.43.95    1
+ #service    device   role     ping-ip         weight   gateway
+ CABLE	    eth0     isp      173.194.43.95    1        default
+ DSL	    eth1     isp      173.194.43.95    1        default
  LAN	    eth2     lan      
 </pre>
 
@@ -103,16 +103,25 @@ through the remaining ISP(s). The service will continue to be
 monitored and will be brought up when it is once again working. Choose
 a host that is not likely to go offline for reasons unrelated to your
 network connectivity, such as google.com, or the ISP's web site. If
-this column is absent, then the host will default to www.google.ca,
-which is probably not what you want!
+this column is absent or named "default", then the host will default
+to www.google.ca, which is probably not what you want!
 
-The fifth column (optional) is a weight to assign to the service, and
-is only valid for ISP rows. If weights are equal, traffic will be
-apportioned evenly between the two routes. Increase a weight to favor
-one ISP over the others. For example, if "CABLE" has a weight of 2 and
-"DSL" has a weight of 1, then twice as much traffic will flow through
-the CABLE service. If this column is omitted, then equal weights are
-assumed.
+The fifth column is a weight to assign to the service, and is only
+valid for ISP rows. If weights are equal, traffic will be apportioned
+evenly between the two routes. Increase a weight to favor one ISP over
+the others. For example, if "CABLE" has a weight of 2 and "DSL" has a
+weight of 1, then twice as much traffic will flow through the CABLE
+service. If this column is omitted or marked "default", then a weight
+of 1 is assumed.
+
+The sixth column is the IP address for the gateway host for this
+service.  If absent or named "default", the system will attempt to
+guess the proper gateway automatically. Note the guessing algorithm
+relies on the fact that the gateway is usually the first address in
+the IP range for the network attached to this interface. If this is
+not the case, then routing through the interface won't work
+properly. Enter the correct gateway IP address in this field to
+correct this.
 
 <li> (optional) Make edits to the firewall and route rules.
 
