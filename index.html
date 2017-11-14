@@ -273,11 +273,11 @@ DSL modem via interface ppp0.</p>
 corresponds to this network topology:</p>
 
 <pre>
- ##service    device   role     ping-ip           weight
- #CABLE       eth0     isp      173.194.43.95     1<b>
- #DSL         ppp0     isp      173.194.43.95     1<b>
- #LAN         eth1     lan                        <b>
-</b></b></b></pre>
+ ##service    device   role     ping-ip           weight     gateway
+ #CABLE       eth0     isp      173.194.43.95     1          default
+ #DSL         ppp0     isp      173.194.43.95     1          default
+ #LAN         eth1     lan                        
+</pre>
 
 <p>Remove the # signs from the body of the table and edit to match your network. </p>
 
@@ -310,6 +310,15 @@ one ISP over the others. For example, if "CABLE" has a weight of 2 and
 "DSL" has a weight of 1, then twice as much traffic will flow through
 the CABLE service. If this column is omitted, then equal weights are
 assumed.</p>
+
+<p>The <span style="font-weight:bold">sixth column</span> (optional)
+is the IP address for the gateway host for this service.  If absent or
+named "default", the system will attempt to guess the proper gateway
+automatically. Note the guessing algorithm relies on the fact that the
+gateway is usually the first address in the IP range for the network
+attached to this interface. If this is not the case, then routing
+through the interface won't work properly. Enter the correct gateway
+IP address in this field to correct this.</p>
 
 <p>When running in "failover" mode (see the <b>mode</b> option) then
 the weight is used to select which ISP to route through. The currently
