@@ -1,3 +1,6 @@
+1.27	-Add the "gateway" column to the template config file that is
+	installed at build time.
+
 1.26    -Expanded configuration file to allow the gateway for an
       	 interface to be set explicitly, rather than guessed. This
 	 fixes provlems on systems where the gateway is set to an odd
