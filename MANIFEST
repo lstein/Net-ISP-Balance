@@ -35,6 +35,7 @@ lsm/lsm.conf.sample
 lsm/lsm.h
 lsm/lsm.init
 lsm/lsm.spec
+lsm/Makefile
 lsm/plugin_export.c
 lsm/plugin_export.h
 lsm/README

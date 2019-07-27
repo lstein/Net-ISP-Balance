@@ -1,3 +1,7 @@
+1.28    - 
+
+1.28	-Added lsm/Makefile to MANIFEST to fix build and install errors.
+
 1.27	-Add the "gateway" column to the template config file that is
 	installed at build time.
 

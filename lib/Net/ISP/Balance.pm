@@ -9,7 +9,7 @@ no warnings;
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.27';
+our $VERSION    = '1.28';
 
 =head1 NAME
 
@@ -1462,8 +1462,8 @@ sub _parse_configuration_file {
 		
 	$services{$service}{dev}    = $device;
 	$services{$service}{role}   = $role;
-	$services{$service}{ping}   = $ping_dest  || 'www.google.ca';
-	$services{$service}{weight} = $weight     || 1;
+	$services{$service}{ping}   = $ping_dest  // 'www.google.ca';
+	$services{$service}{weight} = $weight     // 1;
 	$services{$service}{gateway}= $gateway;
     }
     close $f;
