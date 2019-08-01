@@ -457,6 +457,12 @@ Set or interrogate the operating mode. Will return one of "balanced"
 option in the configuration file. If the option is neither "balanced"
 nor "failover", then "balanced" is chosen (be warned!)
 
+In "balanced" mode, packets are distributed among WAN interfaces
+proportional to assigned weights. In "failover" mode, the interface
+with the heighest weight is chosen to route ALL packets. If it goes
+down, then the interface with the next heighest weight is used, and so
+forth.
+
 =cut
 
 sub operating_mode {
@@ -500,7 +506,7 @@ sub dev_lookup_retry_delay {
 Get/set the keep_custom_chains flag. If this is true (default), then
 any custom iptables chains, such as those created by miniunpnpd or
 fail2ban, will be restored after execution of the firewall rules. If
-false, then these rules were be flushed.
+false, then these rules will not be restored.
 
 =cut
 
