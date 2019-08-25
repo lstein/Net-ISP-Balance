@@ -320,14 +320,8 @@ sub do_status {
     }
 
     my $pid         = lsm_pid();
-    my $lsm_running = lsm_running($pid);
-    if ($pid && $lsm_running) {
-	print "lsm is running as process $pid.\n";
-    } elsif ($pid) {
-	print "lsm has a PID file with process id $pid but is no longer running.\n";
-    } else {
-	print "lsm is not running.\n";
-    }
+    my $lsm_running = lsm_running($pid) ? 'running' : 'not running';
+    print "Link monitoring daemon (lsm) process ID: $pid ($lsm_running)\n";
 
     if ($< == 0)  { # running as root
 	kill(USR1 => $pid);
