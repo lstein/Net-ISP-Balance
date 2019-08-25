@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
 
 	/* check pid file */
 	if(argc >= 3) {
-		lfp = open(argv[2], O_RDWR|O_CREAT, 0640);
+		lfp = open(argv[2], O_RDWR|O_CREAT, 0644);
 
 		if(lfp < 0) {
 			syslog(LOG_ERR, "can't open pid file %s", argv[2]);

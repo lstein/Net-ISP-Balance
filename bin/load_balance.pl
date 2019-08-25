@@ -320,10 +320,10 @@ sub do_status {
     }
 
     my $pid         = lsm_pid();
-    my $lsm_running = lsm_running($pid) ? 'running' : 'not running';
-    print "Link monitoring daemon (lsm) process ID: $pid ($lsm_running)\n";
+    my $lsm_running = $pid && lsm_running($pid) ? "running ($pid)" : 'not running';
+    print "\nLink monitoring daemon (lsm) process: $lsm_running\n";
 
-    if ($< == 0)  { # running as root
+    if ($< == 0 && $pid)  { # running as root
 	kill(USR1 => $pid);
 	print STDERR "See syslog for detailed link monitoring information from lsm.\n";
     }
@@ -333,7 +333,10 @@ sub do_status {
 sub lsm_running {
     my $pid = shift;
     $pid ||= lsm_pid();
-    return $pid && kill(0=>$pid);
+    return unless $pid;
+    return kill(0=>$pid) if $< == 0;  # running as root so we can try signaling
+    # otherwise we check whether this pid is listed in /proc
+    return -e "/proc/$pid";
 }
 
 sub lsm_pid {
@@ -356,6 +359,7 @@ sub kill_lsm {
 	kill(TERM => $pid);
 	print STDERR "lsm process killed\n";
     }
+    unlink $lsm_pid_path;
 }
 
 sub start_or_reload_lsm {
