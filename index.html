@@ -278,7 +278,7 @@ corresponds to this network topology:</p>
  #DSL         ppp0     isp      173.194.43.95     1          default
  #LAN         eth1     lan
 
- #mode=balanced
+ mode=balanced
  #mode=failover
 </pre>
 
@@ -333,8 +333,7 @@ proportional to their weights. In the "failover" mode, the service
 with the highest weight is used exclusively for all traffic. If this
 service loses connectivity, then the second highest weighted service
 will be used and so forth. When the preferred service becomes
-available again, traffic will again be routed through it.
-interface.</p>
+available again, traffic will again be routed through it.</p>
 
 <p>If this package is running on a single Internet-connected host, not
 a router, then do not include a "lan" line.</p>
