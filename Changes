@@ -1,4 +1,4 @@
-1.28    - 
+1.29    -Enhanced status reporting to show lsm running status and PID.
 
 1.28	-Added lsm/Makefile to MANIFEST to fix build and install errors.
 

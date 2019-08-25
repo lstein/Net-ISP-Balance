@@ -215,6 +215,8 @@ use Getopt::Long qw(:config no_ignore_case);
 use Carp 'croak';
 use Pod::Usage 'pod2usage';
 use constant LOCK_TIMEOUT => 30;  # if two processes running simultaneously, length of time second will wait for first
+use constant LSM_PID_PATH => '/var/run/lsm.pid';
+my          $lsm_pid_path = LSM_PID_PATH;
 
 my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP,$FLUSH,$VERSION);
 my $result = GetOptions('debug' => \$DEBUG,
@@ -317,11 +319,35 @@ sub do_status {
 	    );
     }
 
+    my $pid         = lsm_pid();
+    my $lsm_running = lsm_running($pid);
+    if ($pid && $lsm_running) {
+	print "lsm is running as process $pid.\n";
+    } elsif ($pid) {
+	print "lsm has a PID file with process id $pid but is no longer running.\n";
+    } else {
+	print "lsm is not running.\n";
+    }
+
     if ($< == 0)  { # running as root
-	kill(USR1 => `cat /var/run/lsm.pid`);
+	kill(USR1 => $pid);
 	print STDERR "See syslog for detailed link monitoring information from lsm.\n";
     }
     exit 0;
+}
+
+sub lsm_running {
+    my $pid = shift;
+    $pid ||= lsm_pid();
+    return $pid && kill(0=>$pid);
+}
+
+sub lsm_pid {
+    -e $lsm_pid_path          or return;
+    open my $fh,$lsm_pid_path or return;
+    chomp (my $pid = <$fh>);
+    close $fh;
+    return $pid;
 }
 
 sub do_kill_lsm {
@@ -330,9 +356,10 @@ sub do_kill_lsm {
 }
 
 sub kill_lsm {
-    my $lsm_running = -e '/var/run/lsm.pid' && kill(0=>`cat /var/run/lsm.pid`);
+    my $pid         = lsm_pid();
+    my $lsm_running = $pid && kill(0=>$pid);
     if ($lsm_running) {
-	kill(TERM => `cat /var/run/lsm.pid`);
+	kill(TERM => $pid);
 	print STDERR "lsm process killed\n";
     }
 }
@@ -342,12 +369,9 @@ sub start_or_reload_lsm {
 
     my $config_changed = write_lsm_config($bal);
     my $lsm_conf       = $bal->lsm_conf_file;
-    my $lsm_pid        = -e '/var/run/lsm.pid' && `cat /var/run/lsm.pid`;
-    chomp($lsm_pid);
+    my $lsm_pid        = lsm_pid();
 
-    my $lsm_running = $lsm_pid && kill(0=>$lsm_pid);
-
-    if (!$lsm_running) {
+    if (!lsm_running($lsm_pid)) {
 	print STDERR  "Starting lsm link status monitoring daemon\n";    
 	syslog('info',"Starting lsm link status monitoring daemon");    
 	$bal->start_lsm();

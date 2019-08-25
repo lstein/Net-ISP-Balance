@@ -9,7 +9,7 @@ no warnings;
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.28';
+our $VERSION    = '1.29';
 
 =head1 NAME
 
