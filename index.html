@@ -276,7 +276,10 @@ corresponds to this network topology:</p>
  ##service    device   role     ping-ip           weight     gateway
  #CABLE       eth0     isp      173.194.43.95     1          default
  #DSL         ppp0     isp      173.194.43.95     1          default
- #LAN         eth1     lan                        
+ #LAN         eth1     lan
+
+ #mode=balanced
+ #mode=failover
 </pre>
 
 <p>Remove the # signs from the body of the table and edit to match your network. </p>
@@ -303,13 +306,16 @@ ISP's web site. If
 this column is absent, then the host will default to www.google.ca,
 which is probably not what you want!</p>
 
-<p>The <span style="font-weight:bold">fifth column</span> (optional) is a weight to assign to the service, and
-is only valid for ISP rows. If weights are equal, traffic will be
-apportioned evenly between the two routes. Increase a weight to favor
-one ISP over the others. For example, if "CABLE" has a weight of 2 and
-"DSL" has a weight of 1, then twice as much traffic will flow through
-the CABLE service. If this column is omitted, then equal weights are
-assumed.</p>
+<p>The <span style="font-weight:bold">fifth column</span> (optional)
+is a weight to assign to the service, and is only valid for ISP
+rows. In the default "balanced" mode of operation, if weights are
+equal, traffic will be apportioned evenly between the two
+routes. Increase a weight to favor one ISP over the others. For
+example, if "CABLE" has a weight of 2 and "DSL" has a weight of 1,
+then twice as much traffic will flow through the CABLE service. If
+this column is omitted, then equal weights are assumed. The meaning of
+the weight column changes when running in "failover" mode. See below
+for more information</p>
 
 <p>The <span style="font-weight:bold">sixth column</span> (optional)
 is the IP address for the gateway host for this service.  If absent or
@@ -320,10 +326,15 @@ attached to this interface. If this is not the case, then routing
 through the interface won't work properly. Enter the correct gateway
 IP address in this field to correct this.</p>
 
-<p>When running in "failover" mode (see the <b>mode</b> option) then
-the weight is used to select which ISP to route through. The currently
-running interface with the highest assigned weight will be selected as
-the default outgoing interface.</p>
+<p>Uncomment one or the other of the "mode" options to select either
+"balanced" or "failover" mode. In the "balanced" mode (the default),
+traffic will be routed in a balanced way across all "isp" services
+proportional to their weights. In the "failover" mode, the service
+with the highest weight is used exclusively for all traffic. If this
+service loses connectivity, then the second highest weighted service
+will be used and so forth. When the preferred service becomes
+available again, traffic will again be routed through it.
+interface.</p>
 
 <p>If this package is running on a single Internet-connected host, not
 a router, then do not include a "lan" line.</p>
@@ -333,6 +344,7 @@ of packet forwarding as well as link status monitoring. You
 may wish to uncomment and adjust these as well:</p>
 
 <pre>
+#mode=balanced
 #mode=failover
 #forwarding_group=:lan :isp
 #warn_email=root@localhost

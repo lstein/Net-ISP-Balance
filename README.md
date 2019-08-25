@@ -79,7 +79,9 @@ Then edit it to meet your needs. The core of the file looks like this:
  #service    device   role     ping-ip         weight   gateway
  CABLE	    eth0     isp      173.194.43.95    1        default
  DSL	    eth1     isp      173.194.43.95    1        default
- LAN	    eth2     lan      
+ LAN	    eth2     lan
+
+mode=balanced
 </pre>
 
 Each line of the table defines a "service" that corresponds to an ISP
@@ -122,6 +124,21 @@ the IP range for the network attached to this interface. If this is
 not the case, then routing through the interface won't work
 properly. Enter the correct gateway IP address in this field to
 correct this.
+
+<li>Select whether to use "balanced" or "failover" mode by
+uncommenting one or the other of these configuration file lines:
+<pre>
+#mode=balanced
+#mode=failover
+</pre>
+
+In the "balanced" mode (the default), traffic will be routed in a
+balanced way across all "isp" services proportional to their
+weights. In the "failover" mode, the service with the highest weight
+is used exclusively for all traffic. If this service loses
+connectivity, then the second highest weighted service will be used
+and so forth. When the preferred service becomes available again,
+traffic will again be routed through it.
 
 <li> (optional) Make edits to the firewall and route rules.
 
