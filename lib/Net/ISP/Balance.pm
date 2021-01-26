@@ -2100,9 +2100,14 @@ sub sanity_fw_rules {
     my $self = shift;
 
     # if any of the devices are ppp, then we clamp the mss
+    # Dunno why we need to add this to both the FORWARD and POSTROUTING rules, but
+    # googling recommends it.
     my @ppp_devices = grep {/ppp\d+/} map {$self->dev($_)} $self->isp_services;
-    $self->iptables("-t mangle -A POSTROUTING -o $_ -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu")
-	foreach @ppp_devices;
+    $self->iptables("-A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu") if @ppp_devices > 0;
+    foreach (@ppp_devices) {
+	$self->iptables("-t mangle -A POSTROUTING -o $_ -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu");
+    }
+
 
     # lo is ok
     $self->iptables(['-A INPUT  -i lo -j ACCEPT',
