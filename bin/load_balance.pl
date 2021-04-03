@@ -365,6 +365,7 @@ sub start_or_reload_lsm {
     my $bal = shift;
 
     my $config_changed = write_lsm_config($bal);
+    my $lsm_pid        = lsm_pid();
 
     if (!lsm_running($lsm_pid)) {
 	print STDERR  "Starting lsm link status monitoring daemon\n";    
