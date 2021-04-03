@@ -357,6 +357,7 @@ sub kill_lsm {
     if ($lsm_running) {
 	kill(TERM => $pid);
 	print STDERR "lsm process killed\n";
+	syslog('warning',"lsm process killed");
     }
     unlink $lsm_pid_path;
 }
@@ -373,9 +374,14 @@ sub start_or_reload_lsm {
 	$bal->start_lsm();
     }
     elsif ($ARGV[0] && $ARGV[0] eq 'long_down') {
+	# this fork insulates us from signals from above - otherwise killing lsm kills us
+	# double fork to avoid zombies
+	fork() && exit 0;
+	fork() && exit 0;
 	print STDERR  "Restarting lsm link status monitoring daemon\n";    
+	syslog('info',"Killing lsm link status monitoring daemon");
+	kill_lsm();
 	syslog('info',"Restarting lsm link status monitoring daemon");
-	do_kill_lsm();
 	$bal->start_lsm();
     }
     
