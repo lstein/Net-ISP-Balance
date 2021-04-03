@@ -215,8 +215,7 @@ use Getopt::Long qw(:config no_ignore_case);
 use Carp 'croak';
 use Pod::Usage 'pod2usage';
 use constant LOCK_TIMEOUT => 30;  # if two processes running simultaneously, length of time second will wait for first
-use constant LSM_PID_PATH => '/var/run/lsm.pid';
-my          $lsm_pid_path = LSM_PID_PATH;
+my          $lsm_pid_path = Net::ISP::Balance->lsm_pid_path();
 
 my ($DEBUG,$VERBOSE,$STATUS,$KILL,$HELP,$FLUSH,$VERSION);
 my $result = GetOptions('debug' => \$DEBUG,
@@ -366,8 +365,6 @@ sub start_or_reload_lsm {
     my $bal = shift;
 
     my $config_changed = write_lsm_config($bal);
-    my $lsm_conf       = $bal->lsm_conf_file;
-    my $lsm_pid        = lsm_pid();
 
     if (!lsm_running($lsm_pid)) {
 	print STDERR  "Starting lsm link status monitoring daemon\n";    
@@ -375,9 +372,10 @@ sub start_or_reload_lsm {
 	$bal->start_lsm();
     }
     elsif ($ARGV[0] && $ARGV[0] eq 'long_down') {
-	print STDERR  "Reloading lsm link status monitoring daemon\n";    
-	syslog('info',"Reloading lsm link status monitoring daemon");    
-	kill(HUP => $lsm_pid);
+	print STDERR  "Restarting lsm link status monitoring daemon\n";    
+	syslog('info',"Restarting lsm link status monitoring daemon");
+	do_kill_lsm();
+	$bal->start_lsm();
     }
     
 }

@@ -1,3 +1,5 @@
+1.30    -lsm daemon now killed and restarted on long_down events
+
 1.29    -Enhanced status reporting to show lsm running status and PID.
 
 1.28	-Added lsm/Makefile to MANIFEST to fix build and install errors.

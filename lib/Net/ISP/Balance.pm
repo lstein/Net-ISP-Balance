@@ -9,7 +9,7 @@ no warnings;
 eval 'use Net::Netmask';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.29';
+our $VERSION    = '1.30';
 
 =head1 NAME
 
@@ -2265,6 +2265,14 @@ sub start_lsm {
     my $lsm_conf = $self->lsm_conf_file;
     system "$lsm $lsm_conf /var/run/lsm.pid";
 }
+
+=head2 $bal->lsm_pid_path
+
+Return the path to the LSM pid file "/var/run/lsm.pid"
+
+=cut
+
+sub lsm_pid_path { return '/var/run/lsm.pid' }
 
 =head2 $bal->signal_lsm($signal)
 
