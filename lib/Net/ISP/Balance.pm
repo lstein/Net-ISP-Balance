@@ -536,7 +536,7 @@ sub sh {
     my @args  = @_;
     my $arg   = join ' ',@args;
     chomp($arg);
-    carp $arg   if $self->verbose;
+    carp "$arg\n" if $self->verbose;
     if ($self->echo_only) {
 	$arg .= "\n";
 	print $arg;
@@ -1834,6 +1834,7 @@ sub _create_service_routing_tables {
 	    $self->ip_route('add table',$self->table($svc),$self->net($s),'dev',$self->dev($s),'src',$self->ip($s));
 	}
 	$self->ip_rule('add from',$self->ip($svc),'table',$self->table($svc));
+	$self->ip_rule('add oif',$self->dev($svc),'table',$self->table($svc));
 	$self->ip_rule('add fwmark',$self->fwmark($svc),'table',$self->table($svc));
     }
 }
