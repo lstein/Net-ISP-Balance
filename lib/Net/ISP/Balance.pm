@@ -536,7 +536,7 @@ sub sh {
     my @args  = @_;
     my $arg   = join ' ',@args;
     chomp($arg);
-    carp "$arg\n" if $self->verbose;
+    print STDERR "$arg\n" if $self->verbose;
     if ($self->echo_only) {
 	$arg .= "\n";
 	print $arg;
@@ -1423,7 +1423,7 @@ sub lsm_config_text {
     $result .= "}\n\n";
 
     for my $svc ($self->isp_services) {
-	my $device = $self->dev($svc);
+	my $device = $self->vdev($svc);
 	my $src_ip = $self->ip($svc);
 	my $ping   = $self->ping($svc);
 	$result .= "connection {\n";
@@ -1769,7 +1769,7 @@ sub _initialize_routes {
     my $self  = shift;
     $self->sh(<<END);
 ip route flush all
-ip rule flush
+ip rule flush all
 ip rule add from all lookup main pref 32766
 ip rule add from all lookup default pref 32767
 END
@@ -1834,10 +1834,11 @@ sub _create_service_routing_tables {
 	print STDERR "# creating routing table for $svc\n" if $self->verbose;
 	$self->ip_route('add table',$self->table($svc),'default dev',$self->dev($svc),'via',$self->gw($svc));
 	for my $s ($self->service_names) {
+	    $self->ip_route('flush table',$self->table($svc));
 	    $self->ip_route('add table',$self->table($svc),$self->net($s),'dev',$self->dev($s),'src',$self->ip($s));
 	}
 	$self->ip_rule('add from',$self->ip($svc),'table',$self->table($svc));
-	$self->ip_rule('add oif',$self->dev($svc),'table',$self->table($svc));
+	$self->ip_rule('add oif',$self->vdev($svc),'table',$self->table($svc));
 	$self->ip_rule('add fwmark',$self->fwmark($svc),'table',$self->table($svc));
     }
 }

@@ -300,7 +300,7 @@ exit 0;
 sub do_status {
     my $state = $bal->event();
     my @svc = sort $bal->isp_services;
-    printf("%-12s %-8s %-8s %-3s\n",
+    printf("%-12s %-12s %-12s %-3s\n",
 	   'Service',
 	   'Device',
 	   'State',
@@ -309,9 +309,9 @@ sub do_status {
 	my $preferred = $bal->preferred_service;
 	my $routing   = $bal->operating_mode eq 'failover' ? $_ eq $preferred
 	                                                   : $state->{$_} eq 'up';
-	printf("%-12s %-8s %-8s %-3s\n",
+	printf("%-12s %-12s %-12s %-3s\n",
 		   $_,
-		   $bal->dev($_),
+		   $bal->vdev($_),
 		   $state->{$_}||'unknown',
 		   $routing ? 'yes' : 'no',
 
@@ -356,8 +356,8 @@ sub kill_lsm {
     my $lsm_running = $pid && kill(0=>$pid);
     if ($lsm_running) {
 	kill(TERM => $pid);
-	print STDERR "lsm process killed\n";
-	syslog('warning',"lsm process killed");
+	print STDERR "foolsm process killed\n";
+	syslog('warning',"foolsm process killed");
     }
     unlink $lsm_pid_path;
 }
