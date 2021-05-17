@@ -1430,9 +1430,8 @@ sub lsm_config_text {
 	my $ping   = $self->ping($svc);
 	$result .= "connection {\n";
 	$result .= " name=$svc\n";
-	$result .= $vdev eq $device ?
-	           " device=$device\n"
-	         : " sourceip=$src_ip\n";
+	$result .= " device=$vdev\n";
+	$result .= " sourceip=$src_ip\n" if $vdev ne $device;
 	$result .= " checkip=$ping\n";
 	$result .= "}\n\n";
     }

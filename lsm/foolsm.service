@@ -1,0 +1,14 @@
+[Unit]
+Description=Foolsm is the link status monitor
+Documentation=http://lsm.foobar.fi/
+Wants=network-online.target
+After=network-online.target shorewall.service shorewall6.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/foolsm --config /etc/foolsm/foolsm.conf --no-fork
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target
