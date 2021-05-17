@@ -1176,7 +1176,8 @@ table used to route connections originating on the router itself.
 
 =cut
 
-sub dev { shift->_service_field(shift,'dev') }
+sub dev { shift->_service_field(shift,'dev')  }
+sub vdev{ shift->_service_field(shift,'vdev') }
 sub ip  { shift->_service_field(shift,'ip')  }
 sub gw  { shift->_service_field(shift,'gw')  }
 sub net { shift->_service_field(shift,'net')  }
@@ -1520,6 +1521,7 @@ sub _collect_interfaces {
 	# copy into hash passed to us
 	$interface_info->{$svc} = {
 	    dev     => $dev,    # otherwise, iptables will croak!!!
+	    vdev    => $vdev,
 	    running => $info->{running},
 	    gw      => $s->{$svc}{gateway} || $info->{gw},
 	    net     => $info->{net},
@@ -1627,6 +1629,7 @@ sub interface_info {
 	    # copy into hash passed to us
 	    $results{$vdev} = {
 		dev     => $dev,    # otherwise, iptables will croak!!!
+		vdev    => $vdev,
 		running => $running,
 		gw      => $gw,
 		net     => $net,
@@ -1772,7 +1775,7 @@ ip rule add from all lookup default pref 32767
 END
     ;
 
-    $self->ip_route("flush table ",$self->table($_)) foreach $self->isp_services;
+    $self->ip_route("flush table ",$self->table($_),'2>/dev/null') foreach $self->isp_services;
 }
 
 sub _create_default_multipath_route {
@@ -2264,7 +2267,9 @@ sub start_lsm {
     my $self = shift;
     my $lsm      = Net::ISP::Balance::ConfigData->config('lsm_path');
     my $lsm_conf = $self->lsm_conf_file;
-    system "$lsm $lsm_conf /var/run/lsm.pid";
+    my $pid_path = $self->lsm_pid_path;
+    system "$lsm -c $lsm_conf -p $pid_path";
+    chmod 0644,$pid_path;
 }
 
 =head2 $bal->lsm_pid_path

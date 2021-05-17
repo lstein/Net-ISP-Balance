@@ -6,7 +6,7 @@ License: GPLv2
 You should be able to find GNU Public License from www.gnu.org.
 
 
-LSM is a Link Status Monitor which can be used to monitor
+Foolsm is a Link Status Monitor which can be used to monitor
 for example a Linux router/firewall connectivity and if
 you happen to have multiple connections it can change
 routing when an up/down event happens by utilizing external
@@ -38,9 +38,9 @@ TODO
 
 DECISION MAKING
 ===============
-As of lsm v0.27, the detection algorithm works like this:
+As of foolsm v0.27, the detection algorithm works like this:
 
-LSM keeps track of
+Foolsm keeps track of
      1) the result of the most recent pings (up to 100)
      2) the number of consecutive lost pings.
      3) the number of consecutive received pings.
@@ -57,7 +57,8 @@ Else If connection (or group) is DOWN
      AND ( (A <= min_packet_loss) AND (C > min_successive_pkts_rcved) )
      then change the connection (or group) to up.
 
-Note: LSM assumes each connection starts UP.
+Note: Foolsm assumes each connection starts in an UNKNOWN state by default.
+
 
 DEPENDENCIES
 ============
@@ -65,11 +66,18 @@ DEPENDENCIES
 default_script uses /bin/mail that's the only reason to depend on
 mailx-package.
 
+
+INSTALLING
+==========
+
+There is now Makefile target install for those of you not using rpms. I use only
+rpm based distros so that may not be in sync with foolsm.spec which does all what
+I need.
+
+
 AUTHORS
 =======
 
 Mika Ilmaranta <ilmis@nullnet.fi>
 
-See lsm.spec's changelog section for patch submitters.
-
-#EOF
+See foolsm.spec's changelog section for patch submitters.

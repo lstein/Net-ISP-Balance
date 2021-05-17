@@ -1,6 +1,6 @@
 /*
 
-(C) 2009-2011 Mika Ilmaranta <ilmis@nullnet.fi>
+(C) 2009-2019 Mika Ilmaranta <ilmis@nullnet.fi>
 
 License: GPLv2
 
@@ -47,6 +47,9 @@ typedef struct config {
 	int ttl;
 	STATUS status;
 	char *queue;
+	int startup_acceleration;
+	int startup_burst_pkts;
+	int startup_burst_interval;
 
 	void *data;
 } CONFIG;
@@ -65,6 +68,7 @@ typedef struct groups {
 	int unknown_up_notify;
 	char *warn_email;
 	int logic; /* or = 0, and = 1 */
+	char *device;
 	STATUS status;
 	char *queue;
 

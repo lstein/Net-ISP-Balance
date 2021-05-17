@@ -1,6 +1,6 @@
 /*
 
-(C) 2009-2011 Mika Ilmaranta <ilmis@nullnet.fi>
+(C) 2009-2019 Mika Ilmaranta <ilmis@nullnet.fi>
 
 License: GPLv2
 
@@ -13,13 +13,41 @@ License: GPLv2
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <dirent.h>
+#include <fnmatch.h>
+
 #include "config.h"
+#include "defs.h"
+
+#define DEFAULT_SCRIPT_FILE SCRIPTDIR "/default_script"
 
 static CONFIG defaults;
+static int errors = 0;
+
 GLOBAL cfg;
 
+static void read_one_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg);
+static int find_all_configs(char* fn, int mustexist, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg);
+static void reassign(char **dst, char *src);
+static void release(char **dst);
 static int eqcmp(char *str, char *pat);
 static int check_addrs(CONFIG *cur);
+
+static void reassign(char **dst, char *src)
+{
+	if(*dst) free(*dst);
+	*dst = strdup(src);
+}
+
+static void release(char **dst)
+{
+	if(*dst) free(*dst);
+	*dst = NULL;
+}
 
 static int eqcmp(char *str, char *pat)
 {
@@ -32,6 +60,7 @@ static int eqcmp(char *str, char *pat)
 
 int reload_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg) {
 	free_config(first, last, firstg, lastg);
+	init_config();
 	return(read_config(fn, first, last, firstg, lastg));
 }
 
@@ -42,27 +71,27 @@ void free_config(CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg)
 
 	cur = (*first);
 	while(cur) {
-		if(cur->name && cur->name != defaults.name)                            free(cur->name);
-		if(cur->sourceip && cur->sourceip != defaults.sourceip)                free(cur->sourceip);
+		if(cur->name && cur->name != defaults.name)                            release(&cur->name);
+		if(cur->sourceip && cur->sourceip != defaults.sourceip)                release(&cur->sourceip);
 		if(cur->srcinfo)                                                       freeaddrinfo(cur->srcinfo);
-		if(cur->checkip && cur->checkip != defaults.checkip)                   free(cur->checkip);
+		if(cur->checkip && cur->checkip != defaults.checkip)                   release(&cur->checkip);
 		if(cur->dstinfo)                                                       freeaddrinfo(cur->dstinfo);
-		if(cur->eventscript && cur->eventscript != defaults.eventscript)       free(cur->eventscript);
-		if(cur->notifyscript && cur->notifyscript != defaults.notifyscript)    free(cur->notifyscript);
-		if(cur->warn_email && cur->warn_email != defaults.warn_email)          free(cur->warn_email);
-		if(cur->device && cur->device != defaults.device)                      free(cur->device);
-		if(cur->queue && cur->queue != defaults.queue)                         free(cur->queue);
-		if(cur->long_down_email && cur->long_down_email != defaults.long_down_email) free(cur->long_down_email);
-		if(cur->long_down_notifyscript && cur->long_down_notifyscript != defaults.long_down_notifyscript) free(cur->long_down_notifyscript);
-		if(cur->long_down_eventscript && cur->long_down_eventscript != defaults.long_down_eventscript) free(cur->long_down_eventscript);
+		if(cur->eventscript && cur->eventscript != defaults.eventscript)       release(&cur->eventscript);
+		if(cur->notifyscript && cur->notifyscript != defaults.notifyscript)    release(&cur->notifyscript);
+		if(cur->warn_email && cur->warn_email != defaults.warn_email)          release(&cur->warn_email);
+		if(cur->device && cur->device != defaults.device)                      release(&cur->device);
+		if(cur->queue && cur->queue != defaults.queue)                         release(&cur->queue);
+		if(cur->long_down_email && cur->long_down_email != defaults.long_down_email) release(&cur->long_down_email);
+		if(cur->long_down_notifyscript && cur->long_down_notifyscript != defaults.long_down_notifyscript) release(&cur->long_down_notifyscript);
+		if(cur->long_down_eventscript && cur->long_down_eventscript != defaults.long_down_eventscript) release(&cur->long_down_eventscript);
 
 		prev = cur;
 		cur = cur->next;
 		free(prev);
 	}
 
-	(*first) = NULL;
-	(*last) = NULL;
+	*first = NULL;
+	*last = NULL;
 
 	curg = (*firstg);
 	while(curg) {
@@ -77,38 +106,58 @@ void free_config(CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg)
 		curg->fgm = NULL;
 		curg->lgm = NULL;
 
-		if(curg->name && curg->name != defaults.name)				free(curg->name);
-		if(curg->eventscript && curg->eventscript != defaults.eventscript)	free(curg->eventscript);
-		if(curg->notifyscript && curg->notifyscript != defaults.notifyscript)	free(curg->notifyscript);
-		if(curg->warn_email && curg->warn_email != defaults.warn_email)		free(curg->warn_email);
-		if(curg->queue && curg->queue != defaults.queue)                        free(curg->queue);
+		if(curg->name && curg->name != defaults.name)				release(&curg->name);
+		if(curg->eventscript && curg->eventscript != defaults.eventscript)	release(&curg->eventscript);
+		if(curg->notifyscript && curg->notifyscript != defaults.notifyscript)	release(&curg->notifyscript);
+		if(curg->warn_email && curg->warn_email != defaults.warn_email)		release(&curg->warn_email);
+		if(curg->device && curg->device != defaults.device)                     release(&curg->device);
+		if(curg->queue && curg->queue != defaults.queue)                        release(&curg->queue);
 
 		prevg = curg;
 		curg = curg->next;
 		free(prevg);
 	}
 
-	(*firstg) = NULL;
-	(*lastg) = NULL;
+	*firstg = NULL;
+	*lastg = NULL;
 
-	if(defaults.name)                  free(defaults.name);
-	if(defaults.checkip)               free(defaults.checkip);
-	if(defaults.eventscript)           free(defaults.eventscript);
-	if(defaults.notifyscript)          free(defaults.notifyscript);
-	if(defaults.warn_email)            free(defaults.warn_email);
-	if(defaults.sourceip)              free(defaults.sourceip);
-	if(defaults.device)                free(defaults.device);
-	if(defaults.queue)                 free(defaults.queue);
+	if(defaults.name)                   release(&defaults.name);
+	if(defaults.checkip)                release(&defaults.checkip);
+	if(defaults.eventscript)            release(&defaults.eventscript);
+	if(defaults.notifyscript)           release(&defaults.notifyscript);
+	if(defaults.warn_email)             release(&defaults.warn_email);
+	if(defaults.sourceip)               release(&defaults.sourceip);
+	if(defaults.device)                 release(&defaults.device);
+	if(defaults.queue)                  release(&defaults.queue);
 
-	if(defaults.long_down_email)       free(defaults.long_down_email);
-	if(defaults.long_down_notifyscript) free(defaults.long_down_notifyscript);
-	if(defaults.long_down_eventscript) free(defaults.long_down_eventscript);
+	if(defaults.long_down_email)        release(&defaults.long_down_email);
+	if(defaults.long_down_notifyscript) release(&defaults.long_down_notifyscript);
+	if(defaults.long_down_eventscript)  release(&defaults.long_down_eventscript);
 }
 
 void init_config(void)
 {
+	/* zero cfg and defaults */
+	memset(&cfg, 0, sizeof(cfg));
+	memset(&defaults, 0, sizeof(defaults));
+
 	/* initialize to sane value */
 	cfg.debug = 8;
+
+	defaults.name = strdup("defaults");
+	defaults.checkip = strdup("127.0.0.1");
+	defaults.eventscript = NULL;
+	defaults.notifyscript = strdup(DEFAULT_SCRIPT_FILE);
+	defaults.max_packet_loss = 15;
+	defaults.max_successive_pkts_lost = 7;
+	defaults.min_packet_loss = 5;
+	defaults.min_successive_pkts_rcvd = 10;
+	defaults.interval_ms = 1000;
+	defaults.timeout_ms = 1000;
+	defaults.warn_email = strdup("root");
+	defaults.check_arp = 0;
+	defaults.sourceip = NULL;
+	defaults.ttl = 0;
 
 	/* assume default unknown state for connections unless user has stated otherwise later in config */
 	defaults.status = UNKNOWN;
@@ -116,26 +165,131 @@ void init_config(void)
 	/* no exec queue by default */
 	defaults.queue = NULL;
 
-	defaults.warn_email = NULL;
 	defaults.long_down_email = NULL;
 
 	/* by default don't execute notify script on unkown to up event */
 	defaults.unknown_up_notify = 0;
+
+	/* by default no accelerated startup */
+	defaults.startup_acceleration = 0;
+
+	/* by default no startup burst */
+	defaults.startup_burst_pkts = 0;
+	defaults.startup_burst_interval = MIN_PERHOST_INTERVAL;
 }
 
-int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg) {
+static int find_all_configs(char* fn, int mustexist, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg)
+{
+	struct dirent **namelist;
+	char dir[BUFSIZ], pattern[128], *p, s[BUFSIZ];
+	int n, i, found;
+
+	/* Split fn to dir/pattern */
+	strcpy(dir, fn);
+	if((p = strrchr(dir, '/')) == NULL) {
+		strcpy(dir, ".");
+		strcpy(pattern, fn);
+	} else {
+		*p = 0;
+		strcpy(pattern, p + 1);
+	}
+
+	/* Find list of all files */
+	n = scandir(dir, &namelist, 0, alphasort);
+	if (n < 0) {
+		if (mustexist == 0)
+			return(0);
+		syslog(LOG_ERR, "%s: can't read directory \"%s\"", __FUNCTION__, dir);
+		return(-1);
+	}
+
+	/* See if name matches pattern */
+	found = 0;
+	for (i = 0; i < n; i++) {
+		if (fnmatch(pattern, namelist[i]->d_name, 0) == 0 &&
+		    fnmatch("*~", namelist[i]->d_name, 0) != 0) {
+			snprintf(s, BUFSIZ, "%s/%s", dir, namelist[i]->d_name);
+			read_one_config(s, first, last, firstg, lastg);
+			found++;
+		}
+		free(namelist[i]);
+	}
+	free(namelist);
+
+	/* Fail if no matches found */
+	if (found == 0) {
+		if (mustexist == 0)
+			return(0);
+		syslog(LOG_ERR, "%s: no config files found for \"%s\"", __FUNCTION__, fn);
+		return(-1);
+	}
+
+	return(0);
+}
+
+int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg)
+{
+	CONFIG *cur = NULL;
+	GROUPS *curg = NULL;
+	GROUP_MEMBERS *curgm = NULL;
+
+	errors = 0;
+
+	read_one_config(fn, first, last, firstg, lastg);
+
+	for(curg = *firstg; curg; curg = curg->next) {
+		for(curgm = curg->fgm; curgm; curgm = curgm->next) {
+			int found = 0;
+
+			for(cur = *first; cur; cur = cur->next) {
+				if(!strcmp(cur->name, curgm->name)) {
+					curgm->cfg_ptr = cur;
+					found = 1;
+					break;
+				}
+			}
+			if(!found) {
+				syslog(LOG_ERR, "%s: %s: connection group member \"%s\" not found", __FILE__, __FUNCTION__, curgm->name);
+				errors++;
+			}
+		}
+	}
+
+	/* some parameter sanity checking */
+	for(cur = *first; cur; cur = cur->next) {
+		if(strlen(cur->checkip) == 0) {
+			syslog(LOG_ERR, "WARNING: connection \"%s\" has no checkip parameter set", cur->name);
+			errors++;
+		} else {
+			if(check_addrs(cur) < 0) {
+				errors++;
+			}
+		}
+
+		if(cur->max_packet_loss <= cur->min_packet_loss) {
+			syslog(LOG_ERR, "WARNING: connection \"%s\" max_packet_loss (%d) <= min_packet_loss (%d). that would cause flip-flop effect", cur->name, cur->max_packet_loss, cur->min_packet_loss);
+			errors++;
+		}
+
+	}
+	if(errors) return(-1);
+
+	return(0);
+}
+
+static void read_one_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg)
+{
 	CONFIG *cur = NULL;
 	GROUPS *curg = NULL;
 	GROUP_MEMBERS *curgm = NULL;
 	FILE *fp;
 	char buf[BUFSIZ];
 	int mode = 0;
-	int errors = 0;
 	int line = 1;
 
 	if((fp = fopen(fn, "r")) == 0) {
-		syslog(LOG_ERR, "read_config: can't open config file \"%s\"", fn);
-		return(-1);
+		syslog(LOG_ERR, "%s: can't open config file \"%s\"", __FUNCTION__, fn);
+		return;
 	}
 
 	while(fgets(buf, BUFSIZ, fp)) {
@@ -152,14 +306,6 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 
 		if(!*buf) continue;
 
-		if (!strncmp(buf, "include ", 8)) {
-			if(read_config(strchr(buf, ' ') + 1, first, last, firstg, lastg)) {
-				syslog(LOG_ERR, "%s: %s: failed to process included config file on line %d \"%s\"", __FILE__, __FUNCTION__, line, strchr(buf, ' ') + 1);
-				errors++;
-			}
-			continue;
-		}
-
 		if(mode) {
 			if (!strcmp(buf, "}")) {
 				mode=0;
@@ -168,34 +314,69 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 
 			switch(mode) {
 			case 1: /* defaults */
-				if(!eqcmp(buf, "name"))                            defaults.name                          = strdup(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "checkip"))                    defaults.checkip                       = strdup(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "eventscript"))                defaults.eventscript                   = strdup(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "notifyscript"))               defaults.notifyscript                  = strdup(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "unknown_up_notify"))          defaults.unknown_up_notify             = atoi(strchr(buf, '=') + 1);
+				if(!eqcmp(buf, "name"))
+					reassign(&defaults.name, strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "checkip"))
+					reassign(&defaults.checkip, strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "eventscript"))
+					reassign(&defaults.eventscript, strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "notifyscript"))
+					reassign(&defaults.notifyscript, strchr(buf, '=') + 1);
 
-				else if(!eqcmp(buf, "max_packet_loss"))            defaults.max_packet_loss               = atoi(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "max_successive_pkts_lost"))   defaults.max_successive_pkts_lost      = atoi(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "min_packet_loss"))            defaults.min_packet_loss               = atoi(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "min_successive_pkts_rcvd"))   defaults.min_successive_pkts_rcvd      = atoi(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "interval_ms"))                defaults.interval_ms                   = atoi(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "timeout_ms"))                 defaults.timeout_ms                    = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "unknown_up_notify"))
+					defaults.unknown_up_notify = atoi(strchr(buf, '=') + 1);
 
-				else if(!eqcmp(buf, "warn_email"))                 defaults.warn_email                    = strdup(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "max_packet_loss"))
+					defaults.max_packet_loss = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "max_successive_pkts_lost"))
+					defaults.max_successive_pkts_lost = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "min_packet_loss"))
+					defaults.min_packet_loss = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "min_successive_pkts_rcvd"))
+					defaults.min_successive_pkts_rcvd = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "interval_ms"))
+					defaults.interval_ms = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "timeout_ms"))
+					defaults.timeout_ms = atoi(strchr(buf, '=') + 1);
 
-				else if(!eqcmp(buf, "check_arp"))                  defaults.check_arp                     = atoi(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "sourceip"))                   defaults.sourceip                      = strdup(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "device"))                     defaults.device                        = strdup(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "ttl"))                        defaults.ttl                           = atoi(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "status"))                     defaults.status                        = atoi(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "queue"))			   defaults.queue			  = strdup(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "warn_email"))
+					reassign(&defaults.warn_email, strchr(buf, '=') + 1);
 
-				else if(!eqcmp(buf, "long_down_time"))             defaults.long_down_time                = atoi(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "long_down_email"))            defaults.long_down_email               = strdup(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "long_down_notifyscript"))     defaults.long_down_notifyscript        = strdup(strchr(buf, '=') + 1);
-				else if(!eqcmp(buf, "long_down_eventscript"))      defaults.long_down_eventscript         = strdup(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "check_arp"))
+					defaults.check_arp = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "sourceip"))
+					reassign(&defaults.sourceip, strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "device"))
+					reassign(&defaults.device, strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "ttl"))
+					defaults.ttl = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "status"))
+					defaults.status = atoi(strchr(buf, '=') + 1);
+
+				else if(!eqcmp(buf, "queue"))
+					reassign(&defaults.queue, strchr(buf, '=') + 1);
+
+				else if(!eqcmp(buf, "long_down_time"))
+					defaults.long_down_time = atoi(strchr(buf, '=') + 1);
+
+				else if(!eqcmp(buf, "long_down_email"))
+					reassign(&defaults.long_down_email, strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "long_down_notifyscript"))
+					reassign(&defaults.long_down_notifyscript, strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "long_down_eventscript"))
+					reassign(&defaults.long_down_eventscript, strchr(buf, '=') + 1);
+
+				else if(!eqcmp(buf, "startup_acceleration"))
+					defaults.startup_acceleration = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "startup_burst_pkts"))
+					defaults.startup_burst_pkts = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "startup_burst_interval"))
+					defaults.startup_burst_interval = atoi(strchr(buf, '=') + 1);
 				else {
-					syslog(LOG_ERR, "%s: %s: unrecognised default config option on line %d \"%s\"", __FILE__, __FUNCTION__, line, buf);
+					syslog(LOG_ERR, "%s: %s: unrecognised "
+					       "default config option on "
+					       "line %d \"%s\"", __FILE__,
+					       __FUNCTION__, line, buf);
 					errors++;
 				}
 				break;
@@ -231,6 +412,9 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 				else if(!eqcmp(buf, "long_down_email"))            cur->long_down_email               = strdup(strchr(buf, '=') + 1);
 				else if(!eqcmp(buf, "long_down_notifyscript"))     cur->long_down_notifyscript        = strdup(strchr(buf, '=') + 1);
 				else if(!eqcmp(buf, "long_down_eventscript"))      cur->long_down_eventscript         = strdup(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "startup_acceleration"))       cur->startup_acceleration          = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "startup_burst_pkts"))         cur->startup_burst_pkts            = atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "startup_burst_interval"))     cur->startup_burst_interval        = atoi(strchr(buf, '=') + 1);
 				else {
 					syslog(LOG_ERR, "%s: %s: unrecognised connection config option on line %d \"%s\"", __FILE__, __FUNCTION__, line, buf);
 					errors++;
@@ -243,13 +427,14 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 				else if(!eqcmp(buf, "unknown_up_notify"))          curg->unknown_up_notify              = atoi(strchr(buf, '=') + 1);
 				else if(!eqcmp(buf, "warn_email"))                 curg->warn_email			= strdup(strchr(buf, '=') + 1);
 				else if(!eqcmp(buf, "logic"))                      curg->logic				= atoi(strchr(buf, '=') + 1);
+				else if(!eqcmp(buf, "device"))                     curg->device                         = strdup(strchr(buf, '=') + 1);
 				else if(!eqcmp(buf, "status"))			   curg->status                         = atoi(strchr(buf, '=') + 1);
 				else if(!eqcmp(buf, "queue"))                      curg->queue                          = strdup(strchr(buf, '=') + 1);
 				else if(!eqcmp(buf, "member-connection")) {
 					if((curgm = (GROUP_MEMBERS *)malloc(sizeof(GROUP_MEMBERS))) == NULL) {
 						syslog(LOG_ERR, "%s: %s: can't malloc for group member", __FILE__, __FUNCTION__);
 						fclose(fp);
-						return(-1);
+						return;
 					}
 					curgm->name = strdup(strchr(buf, '=') + 1);
 					curgm->cfg_ptr = NULL;
@@ -272,14 +457,15 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 				}
 				break;
 			default:
-				syslog(LOG_ERR, "%s: %s: switch(mode) hit default: should never happen mode was %d", __FILE__, __FUNCTION__, mode);
+				syslog(LOG_ERR, "%s: %s: switch(mode) hit default: should never happen. mode was %d", __FILE__, __FUNCTION__, mode);
 				errors++;
 				break;
 			}
 		}
 		else {
 			/* global config */
-			if(!eqcmp(buf, "debug"))                        cfg.debug                          = atoi(strchr(buf, '=') + 1);
+			if(!eqcmp(buf, "debug"))
+				cfg.debug = atoi(strchr(buf, '=') + 1);
 
 			/* per connection configs */
 			else if(!strcmp(buf, "defaults {"))
@@ -288,7 +474,7 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 				mode=2;
 				if((cur = malloc(sizeof(CONFIG))) == NULL) {
 					syslog(LOG_ERR, "%s: %s: can't malloc for config", __FILE__, __FUNCTION__);
-					return(-1);
+					return;
 				}
 
 				if(*last) { /* not first */
@@ -329,6 +515,9 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 					cur->long_down_email            = defaults.long_down_email;
 					cur->long_down_notifyscript     = defaults.long_down_notifyscript;
 					cur->long_down_eventscript      = defaults.long_down_eventscript;
+					cur->startup_acceleration	= defaults.startup_acceleration;
+					cur->startup_burst_pkts		= defaults.startup_burst_pkts;
+					cur->startup_burst_interval     = defaults.startup_burst_interval;
 				}
 				else
 					syslog(LOG_ERR, "%s: %s: defaults not set", __FILE__, __FUNCTION__);
@@ -338,7 +527,7 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 
 				if((curg = (GROUPS *)malloc(sizeof(GROUPS))) == NULL) {
 					syslog(LOG_ERR, "read_config: can't malloc for group");
-					return(-1);
+					return;
 				}
 
 				/* apply sane defaults for group */
@@ -348,6 +537,7 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 				curg->unknown_up_notify = defaults.unknown_up_notify;
 				curg->warn_email      = defaults.warn_email;
 				curg->logic           = 0; /* default group logic or */
+				curg->device          = defaults.device;
 				curg->status          = defaults.status;
 				curg->queue           = defaults.queue;
 
@@ -366,8 +556,22 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 					curg->next = NULL;
 				}
 			}
+			else if(!strncmp(buf, "include ", 8)) {
+				if(find_all_configs(strchr(buf, ' ') + 1, 1, first, last, firstg, lastg) != 0) {
+					syslog(LOG_ERR, "%s: %s: failed to process included config file on line %d \"%s\"", __FILE__, __FUNCTION__, line, strchr(buf, ' ') + 1);
+					errors++;
+				}
+				continue;
+			}
+			else if(!strncmp(buf, "-include ", 9)) {
+				if(find_all_configs(strchr(buf, ' ') + 1, 0, first, last, firstg, lastg) != 0) {
+					syslog(LOG_ERR, "%s: %s: failed to process included config file on line %d \"%s\"", __FILE__, __FUNCTION__, line, strchr(buf, ' ') + 1);
+					errors++;
+				}
+				continue;
+			}
 			else {
-				syslog(LOG_ERR, "%s: %s: unrecognised global config option on line %d \"%s\"", __FILE__, __FUNCTION__, line, buf);
+				syslog(LOG_ERR, "%s: %s: unrecognised global config option in file \"%s\" on line %d \"%s\"", __FILE__, __FUNCTION__, fn, line, buf);
 				errors++;
 			}
 		}
@@ -375,59 +579,11 @@ int read_config(char *fn, CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS
 	}
 
 	if(mode != 0) {
-		syslog(LOG_ERR, "%s: %s: missing closing bracket at the of config file", __FILE__, __FUNCTION__);
+		syslog(LOG_ERR, "%s: %s: missing closing bracket at the end of config file \"%s\"", __FILE__, __FUNCTION__, fn);
 		errors++;
 	}
 
 	fclose(fp);
-
-	curg = *firstg;
-	while(curg) {
-		curgm = curg->fgm;
-		while(curgm) {
-			int found = 0;
-
-			cur = *first;
-			while(cur) {
-				if(!strcmp(cur->name, curgm->name)) {
-					curgm->cfg_ptr = cur;
-					found = 1;
-					break;
-				}
-
-				cur = cur->next;
-			}
-			if(!found) {
-				syslog(LOG_ERR, "%s: %s: connection group member \"%s\" not found", __FILE__, __FUNCTION__, curgm->name);
-				errors++;
-			}
-			curgm = curgm->next;
-		}
-		curg = curg->next;
-	}
-
-	/* some parameter sanity checking */
-	cur = *first;
-	while(cur) {
-		if(strlen(cur->checkip) == 0) {
-			syslog(LOG_ERR, "WARNING: connection \"%s\" has no checkip parameter set", cur->name);
-			errors++;
-		} else {
-			if(check_addrs(cur) < 0) {
-				errors++;
-			}
-		}
-
-		if(cur->max_packet_loss <= cur->min_packet_loss) {
-			syslog(LOG_ERR, "WARNING: connection \"%s\" max_packet_loss <= min_packet_loss. that would cause flip-flop effect", cur->name);
-			errors++;
-		}
-
-		cur = cur->next;
-	}
-	if(errors) return(-1);
-
-	return(0);
 }
 
 void dump_config(CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg)
@@ -438,8 +594,7 @@ void dump_config(CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg)
 
 	syslog(LOG_INFO,   "cfg.debug                     = \"%d\"", cfg.debug);
 
-	cur = *first;
-	while(cur) {
+	for(cur = *first; cur; cur = cur->next) {
 		syslog(LOG_INFO, "cur->name                     = \"%s\"", cur->name);
 		syslog(LOG_INFO, "cur->sourceip                 = \"%s\"", cur->sourceip);
 #if defined(DEBUG)
@@ -474,27 +629,23 @@ void dump_config(CONFIG **first, CONFIG **last, GROUPS **firstg, GROUPS **lastg)
 		syslog(LOG_INFO, "cur->device                   = \"%s\"", cur->device);
 		syslog(LOG_INFO, "cur->ttl                      = \"%d\"", cur->ttl);
 		syslog(LOG_INFO, "cur->status                   = \"%d\"", cur->status);
-
-		cur = cur->next;
+		syslog(LOG_INFO, "cur->startup_acceleration     = \"%d\"", cur->startup_acceleration);
+		syslog(LOG_INFO, "cur->startup_burst_pkts       = \"%d\"", cur->startup_burst_pkts);
+		syslog(LOG_INFO, "cur->startup_burst_interval   = \"%d\"", cur->startup_burst_interval);
 	}
 
-	curg = *firstg;
-	while(curg) {
+	for(curg = *firstg; curg; curg = curg->next) {
 		syslog(LOG_INFO, "curg->name                    = \"%s\"", curg->name);
 		syslog(LOG_INFO, "curg->eventscript             = \"%s\"", curg->eventscript);
 		syslog(LOG_INFO, "curg->notifyscript            = \"%s\"", curg->notifyscript);
 		syslog(LOG_INFO, "curg->unknown_up_notify       = \"%d\"", curg->unknown_up_notify);
 		syslog(LOG_INFO, "curg->warn_email              = \"%s\"", curg->warn_email);
+		syslog(LOG_INFO, "curg->device                  = \"%s\"", curg->device);
 		syslog(LOG_INFO, "curg->logic                   = \"%s\"", curg->logic == 0 ? "OR" : "AND");
 
-		curgm = curg->fgm;
-		while(curgm) {
+		for(curgm = curg->fgm; curgm; curgm = curgm->next) {
 			syslog(LOG_INFO, "curgm->name                   = \"%s\"", curgm->name);
-
-			curgm = curgm->next;
 		}
-
-		curg = curg->next;
 	}
 }
 

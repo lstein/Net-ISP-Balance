@@ -18,8 +18,14 @@ License: GPLv2
 #include "plugin_export.h"
 #include "timecalc.h"
 #include "defs.h"
+#ifndef NO_PLUGIN_EXPORT_STATUS
+#include "globals.h"
+#endif
 
+#ifndef NO_PLUGIN_EXPORT_MUNIN
 static char *munin_data_src_name(const char *src);
+static void plugin_export_munin(CONFIG *first);
+#endif
 
 static struct timeval export_time = {0, 0};
 
@@ -31,10 +37,6 @@ void plugin_export_init(void)
 void plugin_export(CONFIG *first)
 {
 	struct timeval current_time = {0, 0};
-	FILE *fp;
-	char buf[BUFSIZ];
-	CONFIG *cur;
-	TARGET *t;
 
 	gettimeofday(&current_time, NULL);
 
@@ -45,6 +47,18 @@ void plugin_export(CONFIG *first)
 	timeval_add(&export_time, 300, 0);
 
 #ifndef NO_PLUGIN_EXPORT_MUNIN
+	plugin_export_munin(first);
+#endif
+}
+
+#ifndef NO_PLUGIN_EXPORT_MUNIN
+static void plugin_export_munin(CONFIG *first)
+{
+	FILE *fp;
+	char buf[BUFSIZ];
+	CONFIG *cur;
+	TARGET *t;
+
 	/* export avg_rtt graph config */
 	snprintf(buf, BUFSIZ - 1, "%s/%s", PLUGIN_EXPORT_DIR, "config.rtt");
 
@@ -53,9 +67,9 @@ void plugin_export(CONFIG *first)
 		return;
 	}
 
-	fprintf(fp, "graph_title LSM Average Ping Latency\n");
+	fprintf(fp, "graph_title Foolsm Average Ping Latency\n");
 	fprintf(fp, "graph_vlabel ms\n");
-	fprintf(fp, "graph_info This graph shows LSM status\n");
+	fprintf(fp, "graph_info This graph shows Foolsm status\n");
 	fprintf(fp, "graph_category network\n");
 	fprintf(fp, "graph_args --base 1000 -l 0\n");
 
@@ -93,9 +107,9 @@ void plugin_export(CONFIG *first)
 		return;
 	}
 
-	fprintf(fp, "graph_title LSM packet counts\n");
+	fprintf(fp, "graph_title Foolsm packet counts\n");
 	fprintf(fp, "graph_vlabel percent\n");
-	fprintf(fp, "graph_info This graph shows LSM status\n");
+	fprintf(fp, "graph_info This graph shows Foolsm status\n");
 	fprintf(fp, "graph_category network\n");
 	fprintf(fp, "graph_args --base 1000 -l 0\n");
 
@@ -154,9 +168,75 @@ void plugin_export(CONFIG *first)
 	}
 
 	fclose(fp);
-#endif
-}
 
+	/* export connection status config */
+	snprintf(buf, BUFSIZ - 1, "%s/%s", PLUGIN_EXPORT_DIR, "config.status");
+
+	if((fp = fopen(buf, "w")) == NULL) {
+		syslog(LOG_ERR, "%s: %s: failed to open file %s for write", __FILE__, __FUNCTION__, buf);
+		return;
+	}
+
+	fprintf(fp, "graph_title Foolsm connection statuses\n");
+	fprintf(fp, "graph_vlabel Status\n");
+	fprintf(fp, "graph_info This graph shows Foolsm connection statuses\n");
+	fprintf(fp, "graph_category network\n");
+	fprintf(fp, "graph_info Status: 0 = DOWN, 1 = UP, 2 = UNKNOWN, 3 = LONG_DOWN\n");
+	fprintf(fp, "graph_args --base 1000 --lower-limit 0 --upper-limit 3\n");
+
+	for(cur = first; cur; cur = cur->next) {
+		char *name = munin_data_src_name(cur->name);
+
+		fprintf(fp, "%s_status.label %s Status\n", name, cur->name);
+	}
+
+	fclose(fp);
+
+	/* export connection status values */
+	snprintf(buf, BUFSIZ - 1, "%s/%s", PLUGIN_EXPORT_DIR, "status.status");
+
+	if((fp = fopen(buf, "w")) == NULL) {
+		syslog(LOG_ERR, "%s: %s: failed to open file %s for write", __FILE__, __FUNCTION__, buf);
+		return;
+	}
+
+	for(cur = first; cur; cur = cur->next) {
+		char *name = munin_data_src_name(cur->name);
+		t = cur->data;
+
+		fprintf(fp, "%s_status.value %d\n", name, t->status);
+	}
+
+	fclose(fp);
+}
+#endif
+
+#ifndef NO_PLUGIN_EXPORT_STATUS
+void plugin_export_status(CONFIG *first)
+{
+	FILE *fp;
+	char buf[BUFSIZ];
+	CONFIG *cur;
+	TARGET *t;
+
+	snprintf(buf, BUFSIZ - 1, "%s/%s", PLUGIN_EXPORT_DIR, "status_export");
+
+	if((fp = fopen(buf, "w")) == NULL) {
+		syslog(LOG_ERR, "%s: %s: failed to open file %s for write", __FILE__, __FUNCTION__, buf);
+		return;
+	}
+
+	for(cur = first; cur; cur = cur->next) {
+		t = cur->data;
+
+		fprintf(fp, "%s %s\n", cur->name, get_status_str(t->status));
+	}
+
+	fclose(fp);
+}
+#endif
+
+#ifndef NO_PLUGIN_EXPORT_MUNIN
 static char *munin_data_src_name(const char *src)
 {
 	static char buf[BUFSIZ];
@@ -172,6 +252,7 @@ static char *munin_data_src_name(const char *src)
 	}
 	return(buf);
 }
+#endif
 
 #endif
 

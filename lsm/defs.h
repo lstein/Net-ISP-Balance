@@ -22,7 +22,7 @@ License: GPLv2
 
 #define min(x, y) ((x)<(y) ? (x) : (y))
 
-#define PLUGIN_EXPORT_DIR "/var/lib/lsm"
+#define PLUGIN_EXPORT_DIR "/var/lib/foolsm"
 
 #endif
 

@@ -2,7 +2,7 @@
 
 # You can call a set of scripts like so on an event
 
-cd /etc/lsm/script.d
+cd /etc/foolsm/script.d
 for script in $(ls); do
     if [ ! -x $script ]; then
         continue
@@ -10,4 +10,5 @@ for script in $(ls); do
     ./$script "$@"
 done
 
-#EOF
+exit 0
+#

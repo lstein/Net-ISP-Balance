@@ -1,3 +1,0 @@
-# Link Status Monitor Log file
-if $programname == 'lsm' then /var/log/lsm.log
-if $programname == 'lsm' then ~

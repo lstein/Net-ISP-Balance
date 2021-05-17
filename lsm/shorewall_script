@@ -1,7 +1,7 @@
 #!/bin/sh
 #
-# (C) 2009,2013 Mika Ilmaranta <ilmis@nullnet.fi>
-# Copyright © 2009-2010 Tuomo Soini <tis@foobar.fi>
+# Copyright (C) 2009,2013 Mika Ilmaranta <ilmis@nullnet.fi>
+# Copyright (C) 2009-2010,2015 Tuomo Soini <tis@foobar.fi>
 #
 # License: GPLv2
 #
@@ -28,7 +28,7 @@ SRCIP=${14}
 PREVSTATE=${15}
 TIMESTAMP=${16}
 
-DATE=$(/bin/date --date=@${TIMESTAMP})
+DATE=$(date --date=@${TIMESTAMP})
 
 if [ ${STATE} = up ]; then
     state=0
@@ -38,16 +38,15 @@ else
     action=disable
 fi
 
-VARDIR=$(/sbin/shorewall show vardir)
+VARDIR=$(shorewall show vardir)
+VARDIR=${VARDIR:-/var/lib/shorewall}
 
-echo $state > ${VARDIR:-/var/lib/shorewall}/${DEVICE}.status
+echo ${state} > ${VARDIR}/${DEVICE}.status
 
-sh ${VARDIR:-/var/lib/shorewall}/firewall ${action} ${DEVICE} \
-    >> /var/log/lsm 2>&1 \
-    || sh ${VARDIR:-/var/lib/shorewall}/firewall restart >> /var/log/lsm 2>&1
+if [ -x ${VARDIR}/firewall ]; then
+    ${VARDIR}/firewall ${action} ${DEVICE}
+else
+    shorewall -q restart
+fi
 
-/sbin/shorewall show routing >> /var/log/lsm
-
-exit 0;
-
-#EOF
+exit 0

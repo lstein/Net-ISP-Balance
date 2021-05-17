@@ -11,7 +11,7 @@ License: GPLv2
 #include <string.h>
 
 #include "config.h"
-#include "lsm.h"
+#include "foolsm.h"
 #include "save_statuses.h"
 
 typedef struct status_data {

@@ -369,22 +369,10 @@ sub start_or_reload_lsm {
     my $lsm_pid        = lsm_pid();
 
     if (!lsm_running($lsm_pid)) {
-	print STDERR  "Starting lsm link status monitoring daemon\n";    
-	syslog('info',"Starting lsm link status monitoring daemon");    
+	print STDERR  "Starting foolsm link status monitoring daemon\n";    
+	syslog('info',"Starting foolsm link status monitoring daemon");    
 	$bal->start_lsm();
     }
-    elsif ($ARGV[0] && $ARGV[0] eq 'long_down') {
-	# this fork insulates us from signals from above - otherwise killing lsm kills us
-	# double fork to avoid zombies
-	fork() && exit 0;
-	fork() && exit 0;
-	print STDERR  "Restarting lsm link status monitoring daemon\n";    
-	syslog('info',"Killing lsm link status monitoring daemon");
-	kill_lsm();
-	syslog('info',"Restarting lsm link status monitoring daemon");
-	$bal->start_lsm();
-    }
-    
 }
 
 sub write_lsm_config {

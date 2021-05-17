@@ -1,6 +1,7 @@
 #!/bin/sh
 #
-# (C) 2009-2013 Mika Ilmaranta <ilmis@nullnet.fi>
+# Copyright (C) 2009-2015 Mika Ilmaranta <ilmis@nullnet.fi>
+# Copyright (C) 2015 Tuomo Soini <tis@foobar.fi>
 #
 # License: GPLv2
 #
@@ -26,13 +27,13 @@ SRCIP=${14}
 PREVSTATE=${15}
 TIMESTAMP=${16}
 
-DATE=$(/bin/date --date=@${TIMESTAMP})
-
-if [ "${WARN_EMAIL}" = "-" ] ; then
-    exit 0;
+if [ -z "${WARN_EMAIL}" ] ; then
+    exit 0
 fi
 
-cat <<EOM | mail -s "LSM: ${NAME} ${STATE}, IP ${CHECKIP}" ${WARN_EMAIL}
+DATE=$(date --date=@${TIMESTAMP})
+
+cat <<EOM | mail -s "Foolsm: ${NAME} ${STATE}, IP ${CHECKIP}" ${WARN_EMAIL}
 
 Hi,
 
@@ -58,10 +59,9 @@ cons_miss    = ${CONS_MISS} consecutive packets that have timed out
 avg_rtt      = ${AVG_RTT} average rtt [usec], calculated from received packets
 
 BR,
-Your LSM installation
+Your Foolsm installation
 
 EOM
 
-exit 0;
-
-#EOF
+exit 0
+#

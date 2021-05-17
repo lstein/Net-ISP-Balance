@@ -86,6 +86,8 @@ void create_sigchld_hdl(void)
 
 	memset (&act, 0, sizeof(act));
 	act.sa_handler = sigchld_hdl;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = SA_RESTART | SA_NOCLDSTOP;
 	if (sigaction(SIGCHLD, &act, 0)) {
 		syslog(LOG_ERR, "%s: %s: %d: failed to set up child signal handler: %s", __FILE__, __FUNCTION__, __LINE__, strerror(errno));
 		return;
@@ -102,16 +104,24 @@ static void sigchld_hdl(int sig)
 	/* Wait for the dead process.
 	 * We use a non-blocking call to be sure this signal handler will not
 	 * block if a child was cleaned up in another part of the program. */
-	int exitval;
+	int saved_errno = errno;
+	int script_status;
 	pid_t pid;
 
-	if((pid = waitpid(-1, &exitval, WNOHANG)) == -1) {
-		if(cfg.debug >= 9 && errno != ECHILD) syslog(LOG_ERR, "%s: %s: %d: waitpid failed %s", __FILE__, __FUNCTION__, __LINE__, strerror(errno));
-	} else {
-		if(cfg.debug >= 9 && exitval) syslog(LOG_ERR, "%s: %s: %d: child script with pid %d exited with non null exit value %d", __FILE__, __FUNCTION__, __LINE__, pid, exitval);
-		else if(cfg.debug >= 9) syslog(LOG_ERR, "%s: %s: %d: child script with pid %d exited successfully", __FILE__, __FUNCTION__, __LINE__, pid);
-		exec_queue_delete(pid);
+	while ((pid = waitpid(WAIT_ANY, &script_status, WNOHANG)) != 0) {
+		if(pid == -1) {
+			if(cfg.debug >= 9 && errno != ECHILD)
+				syslog(LOG_ERR, "%s: %s: %d: waitpid failed %s", __FILE__, __FUNCTION__, __LINE__, strerror(errno));
+			break;
+		} else {
+			if(cfg.debug >= 9 && WEXITSTATUS(script_status))
+				syslog(LOG_ERR, "%s: %s: %d: child script with pid %d exited with non null exit value %d", __FILE__, __FUNCTION__, __LINE__, pid, WEXITSTATUS(script_status));
+			else if(cfg.debug >= 9)
+				syslog(LOG_ERR, "%s: %s: %d: child script with pid %d exited successfully", __FILE__, __FUNCTION__, __LINE__, pid);
+			exec_queue_delete(pid);
+		}
 	}
+	errno = saved_errno;
 }
 
 void exec_queue_add(char *queue, char **argv, char **envp)
