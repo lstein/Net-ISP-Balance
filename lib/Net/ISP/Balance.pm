@@ -1423,12 +1423,15 @@ sub lsm_config_text {
     $result .= "}\n\n";
 
     for my $svc ($self->isp_services) {
-	my $device = $self->vdev($svc);
+	my $vdev   = $self->vdev($svc);
+	my $device = $self->dev($svc);
 	my $src_ip = $self->ip($svc);
 	my $ping   = $self->ping($svc);
 	$result .= "connection {\n";
 	$result .= " name=$svc\n";
-	$result .= " device=$device\n";
+	$result .= $vdev eq $device ?
+	           " device=$device\n"
+	         : " sourceip=$src_ip\n";
 	$result .= " checkip=$ping\n";
 	$result .= "}\n\n";
     }
