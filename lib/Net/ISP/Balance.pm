@@ -45,6 +45,7 @@ Net::ISP::Balance - Support load balancing across multiple internet service prov
  my @s = $bal->service_names;
  for my $s (@s) {
     print $bal->dev($s);
+    print $bal->vdev($s);
     print $bal->ip($s);
     print $bal->gw($s);
     print $bal->net($s);
@@ -852,13 +853,13 @@ sub forward {
     $dhost         ||= $host;
     $dport         ||= $port;
 
-    my @dev = map {$self->dev($_)} $self->isp_services;
+    my @dev = map {$self->vdev($_)} $self->isp_services;
 
     for my $dev (@dev) {
 	for my $protocol (@protocols) {
 	    $self->iptables("-t nat -A PREROUTING -i $dev -p $protocol --dport $port -j DNAT --to-destination $host");
 	    for my $lan ($self->lan_services) {
-		my $landev = $self->dev($lan);
+		my $landev = $self->vdev($lan);
 		my $lannet = $self->net($lan);
 		my $lanip  = $self->ip($lan);
 		my $syn    = $protocol eq 'tcp' ? '--syn' : '';
@@ -1005,7 +1006,7 @@ sub event {
     if (@_) {
 	my ($svc,$new_state) = @_;
 	$new_state =~ /^(up|down)$/  or croak "state must be 'up' or  down'";
-	$self->dev($svc)             or croak "service '$svc' is unknown";
+	$self->vdev($svc)            or croak "service '$svc' is unknown";
 	my $file = "/var/lib/lsm/${svc}.state";
 	my $mode = -e $file ? '+<' : '>';
 	open my $fh,$mode,$file or croak "Couldn't open $file mode $mode: $!";
@@ -1795,7 +1796,7 @@ sub _create_default_multipath_route {
 	my $hops = '';
 	for my $svc (@up) {
 	    my $gw     = $self->gw($svc)     or next;
-	    my $dev    = $self->dev($svc)    or next;
+	    my $dev    = $self->vdev($svc)   or next;
 	    my $weight = $self->weight($svc) or next;
 	    $hops  .= "nexthop via $gw dev $dev weight $weight ";
 	}
@@ -1835,9 +1836,9 @@ sub _create_service_routing_tables {
 
     for my $svc ($self->isp_services) {
 	print STDERR "# creating routing table for $svc\n" if $self->verbose;
+	$self->ip_route('flush table',$self->table($svc));
 	$self->ip_route('add table',$self->table($svc),'default dev',$self->dev($svc),'via',$self->gw($svc));
 	for my $s ($self->service_names) {
-	    $self->ip_route('flush table',$self->table($svc));
 	    $self->ip_route('add table',$self->table($svc),$self->net($s),'dev',$self->dev($s),'src',$self->ip($s));
 	}
 	$self->ip_rule('add from',$self->ip($svc),'table',$self->table($svc));
@@ -2038,7 +2039,7 @@ END
 
     # packets from LAN
     for my $lan ($self->lan_services) {
-	my $landev = $self->dev($lan);
+	my $landev = $self->vdev($lan);
 	my $src    = $self->net($lan);
 	
 	if (@up > 1) {
@@ -2064,7 +2065,7 @@ END
 
     # inbound packets from WAN
     for my $wan ($self->isp_services) {
-	my $dev   = $self->dev($wan);
+	my $dev   = $self->vdev($wan);
 	my $table = $self->mark_table($wan);
 	my $src   = $self->net($wan);
 	$self->iptables("-t mangle -A PREROUTING -i $dev -m conntrack --ctstate NEW -j $table");
@@ -2110,7 +2111,7 @@ sub sanity_fw_rules {
     # if any of the devices are ppp, then we clamp the mss
     # Dunno why we need to add this to both the FORWARD and POSTROUTING rules, but
     # googling recommends it.
-    my @ppp_devices = grep {/ppp\d+/} map {$self->dev($_)} $self->isp_services;
+    my @ppp_devices = grep {/ppp\d+/} map {$self->vdev($_)} $self->isp_services;
     $self->iptables("-A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu") if @ppp_devices > 0;
     foreach (@ppp_devices) {
 	$self->iptables("-t mangle -A POSTROUTING -o $_ -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu");
@@ -2136,7 +2137,7 @@ sub sanity_fw_rules {
 
     # allowable traffic patterns within the LAN services
    for my $lan ($self->lan_services) {
-	my $dev = $self->dev($lan);
+	my $dev = $self->vdev($lan);
 	my $net = $self->net($lan);
 
 	# allow unlimited traffic from internal network using legit address	
@@ -2178,13 +2179,13 @@ sub _lan_wan_forwarding_rules {
     my $self = shift;
 
     for my $lan ($self->lan_services) {
-	my $dev = $self->dev($lan);
+	my $dev = $self->vdev($lan);
 	my $net = $self->net($lan);
 
 	# lan/wan forwarding
 	# allow lan/wan forwarding
 	for my $svc ($self->isp_services) {
-	    my $ispdev = $self->dev($svc);
+	    my $ispdev = $self->vdev($svc);
 	    my $target = $self->_allow_forwarding($lan,$svc) ? 'ACCEPT' : 'REJECTPERM';
 	    $self->iptables("-A FORWARD -i $dev -o $ispdev -s $net -j $target");
 	}
@@ -2204,7 +2205,7 @@ sub _lan_lan_forwarding_rules {
 	    my $lan1 = $lans[$i];
 	    my $lan2 = $lans[$j];
 	    my $target = $self->_allow_forwarding($lan1,$lan2) ? 'ACCEPT' : 'REJECTPERM';
-	    $self->iptables('-A FORWARD','-i',$self->dev($lan1),'-o',$self->dev($lan2),'-s',$self->net($lan1),'-d',$self->net($lan2),"-j $target");
+	    $self->iptables('-A FORWARD','-i',$self->vdev($lan1),'-o',$self->vdev($lan2),'-s',$self->net($lan1),'-d',$self->net($lan2),"-j $target");
 	}
     }
 }
@@ -2257,7 +2258,7 @@ This is called by set_firewall() to set up basic NAT rules for lan traffic over 
 sub nat_fw_rules {
     my $self = shift;
     return unless $self->lan_services;
-    $self->iptables('-t nat -A POSTROUTING -o',$self->dev($_),'-j MASQUERADE')
+    $self->iptables('-t nat -A POSTROUTING -o',$self->vdev($_),'-j MASQUERADE')
 	foreach $self->isp_services;
 }
 
