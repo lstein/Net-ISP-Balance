@@ -7,7 +7,7 @@
 
 Summary: The Foobar Link Status Monitor
 Name: foolsm
-Version: 1.0.14
+Version: 1.0.14-load_balance-p1
 Release: 1%{?dist}
 License: GPLv2
 URL: http://lsm.foobar.fi/

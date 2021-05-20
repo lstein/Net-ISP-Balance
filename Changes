@@ -1,3 +1,11 @@
+1.31	-Updated lsm daemon to foolsm version 1.0.14, after patching to allow for
+         monitoring virtual/alias interfaces (e.g. eth0:1). See lsm/foolsm.patch
+	 for the source code changes.
+
+        -When creating the per-interface routing table, add "oif" rules to allow
+	 lsm to bind more consistently to interface device. Otherwise there were
+	 cases when lsm would not detect when link that had gone back up.
+
 1.30    -lsm daemon now killed and restarted on long_down events
 
 1.29    -Enhanced status reporting to show lsm running status and PID.

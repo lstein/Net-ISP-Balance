@@ -1,0 +1,64 @@
+--- /home/lstein/Build/foolsm-1.0.14/foolsm.c	2020-05-04 16:36:26.000000000 -0400
++++ ./foolsm.c	2021-05-20 08:50:23.838949290 -0400
+@@ -1950,7 +1950,9 @@
+ 		}
+ 	}
+ 
+-	if(pf == AF_INET && cur->device && *cur->device) {
++	/* LS - SO_BINDTODEVICE fails on virtual devices, so we skip this if the device name contains a ':' character */
++	/* we will bind to the source address in probe_src_ip_addr */
++	if(pf == AF_INET && cur->device && *cur->device && !strchr(cur->device,':')) {
+ 		if(setsockopt(t->sock, SOL_SOCKET, SO_BINDTODEVICE, cur->device, strlen(cur->device) + 1) == -1) {
+ 			syslog(LOG_INFO, "failed to bind to ping interface device \"%s\", \"%s\"", cur->device, strerror(errno));
+ 			close(t->sock);
+@@ -2048,7 +2050,7 @@
+ 		syslog(LOG_ERR, "ping probe failed to set close on exec on probe socket for %s reason \"%s\"", cur->name, strerror(errno));
+ 	}
+ 
+-	if(cur->device && *cur->device) {
++	if(cur->device && *cur->device && !strchr(cur->device,':')) {
+ 		if(setsockopt(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, cur->device, strlen(cur->device) + 1) == -1)
+ 			syslog(LOG_INFO, "WARNING: ping probe interface \"%s\" is ignored for %s reason \"%s\"", cur->device, cur->name, strerror(errno));
+ 	}
+@@ -2066,8 +2068,20 @@
+ 				memset(&t->src, 0, sizeof(t->src));
+ 				return(2);
+ 			}
+-		}
+-		else {
++		} else {
++		  /* LS -- modified original logic to use SIOCGIFADDR ioctl to get interface address instead of searching routing table */
++                  struct ifreq ifr;
++                  bzero((void*)&ifr,sizeof(struct ifreq));
++                  strncpy(ifr.ifr_name,cur->device,IFNAMSIZ-1);
++                  ifr.ifr_addr.sa_family = pf;
++                  if (ioctl(probe_fd,SIOCGIFADDR,&ifr)) {
++                    syslog(LOG_ERR,"ioctl probe of current ip address for device %s failed \"%s\"",cur->device,strerror(errno));
++                    return(2);
++                  }
++                  t->src = ((struct sockaddr_in*) &ifr.ifr_addr)->sin_addr;
++                }
++		/*
++		  else {
+ 			int on = 1;
+ 			int alen = sizeof(saddr);
+ 
+@@ -2088,6 +2102,7 @@
+ 			}
+ 			t->src = saddr.sin_addr;
+ 		}
++		*/
+ 	} else if (pf == AF_INET6) { /* not AF_INET */
+ 		struct sockaddr_in6 saddr;
+ 		unsigned char nulladdr[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+--- /home/lstein/Build/foolsm-1.0.14/foolsm.spec	2020-05-04 16:43:34.000000000 -0400
++++ ./foolsm.spec	2021-05-20 09:17:30.579384357 -0400
+@@ -7,7 +7,7 @@
+ 
+ Summary: The Foobar Link Status Monitor
+ Name: foolsm
+-Version: 1.0.14
++Version: 1.0.14-load_balance-p1
+ Release: 1%{?dist}
+ License: GPLv2
+ URL: http://lsm.foobar.fi/
