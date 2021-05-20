@@ -61,7 +61,10 @@ distributions based on Debian (e.g. Ubuntu, Mint), as well as those
 based on RedHat (e.g. CentOS). Other distributions may or may not work
 out of the box. Please feel free to
 <a href="https://github.com/lstein/Net-ISP-Balance/">contribute
-support</a> for other distributions.</p>
+  support</a> for other distributions.</p>
+
+<p>The current version is <b>1.31</b>, released 20 March 2021. This
+version improves the reliability of link status checking.</p>
 
 <h1>
 <a name="preparation" class="anchor" href="#preparation"><span class="octicon octicon-link"></span></a>Preparation</h1>
@@ -981,7 +984,13 @@ configuration files.
       break. Please test extensively before entrusting this to a
       production router.
   </dd>
-
+  
+  <dt>...Load balance across IPv6 interfaces></dt>
+  <dd>Net-ISP-Balance does not currently support IPv6, but the
+    underlying link status monitor (lsm) application does. As of March
+    2021, the requirements for adding IPv6 balancing are under
+    investigation.
+  </dd>
 
 </dl>
 
