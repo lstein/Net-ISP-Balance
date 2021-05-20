@@ -35,6 +35,7 @@ lsm/foolsm.conf.sample
 lsm/foolsm.h
 lsm/foolsm.init
 lsm/foolsm.spec
+lsm/foolsm.patch
 lsm/Makefile
 lsm/plugin_export.c
 lsm/plugin_export.h
