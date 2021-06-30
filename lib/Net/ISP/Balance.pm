@@ -1772,7 +1772,7 @@ sub _initialize_routes {
     my $self  = shift;
     $self->sh(<<END);
 ip route flush all
-ip rule flush all
+ip rule flush
 ip rule add from all lookup main pref 32766
 ip rule add from all lookup default pref 32767
 END
