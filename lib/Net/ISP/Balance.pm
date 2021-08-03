@@ -1761,11 +1761,10 @@ sub routing_rules {
     my $mode = $self->operating_mode;
     if ($mode eq 'balanced') {
 	$self->_create_default_multipath_route();
+	$self->_create_service_routing_tables();
     } elsif ($mode eq 'failover') {
 	$self->_create_default_failover_route();
     }
-
-    $self->_create_service_routing_tables();
 }
 
 sub _initialize_routes {
