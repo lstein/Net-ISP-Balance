@@ -26,7 +26,7 @@ sub ACTION_install {
     my $self = shift;
     my $dir  = $self->base_dir();
     $self->SUPER::ACTION_install();
-    mkdir '/var/lib/foolsm';
+    mkdir '/var/lib/lsm';
     my $path = $self->install_destination('script');
     my $install_etc = Net::ISP::Balance->install_etc;
     unlink("$install_etc/load_balance.pl");

@@ -1,3 +1,5 @@
+1.32    -Fixed path of state file - back to /var/lib/lsm (note, this is a temporary fix; needs better configuration)
+
 1.31	-Updated lsm daemon to foolsm version 1.0.14, after patching to allow for
          monitoring virtual/alias interfaces (e.g. eth0:1). See lsm/foolsm.patch
 	 for the source code changes.
