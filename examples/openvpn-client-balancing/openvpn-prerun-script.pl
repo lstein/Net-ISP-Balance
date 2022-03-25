@@ -10,6 +10,7 @@ vpn1         eth0                 tun0
 vpn2         eth1                 tun1
 END
     ;
+
 # this is the number of seconds we will wait for each OpenVPN interface to come up.
 use constant TRIES=> 20;
 
@@ -60,8 +61,20 @@ foreach (@lan) {
     $B->iptables('-A OUTPUT','-o', $eth->{dev}, '-j ACCEPT');
 }
 
+my $is_systemd = 0;
+if (-d '/run/systemd/system') {
+    $is_systemd = 1;
+}
+
 for (my $i=0;$i<@vpn;$i++) {
-    next if `service openvpn status $vpn[$i]`  =~ /is running/
+    my $status_commmand = "service openvpn status $vpn[$i]";
+    my $running_string = 'is running';
+    if ($is_systemd) {
+	$status_command = "systemctl status openvpn\@${vpn[$i]}.service";
+	$running_string = 'Active: active';
+    }
+	
+    next if `$status_command`  =~ /$running_string/
 	&&  `ifconfig $tunnel[$i] 2>/dev/null` =~ /UP/;
 
     print STDERR "starting $vpn[$i]\n";
@@ -69,12 +82,16 @@ for (my $i=0;$i<@vpn;$i++) {
     my $phys = $physical[$i];
 
     my $route  = "default via $interfaces->{$phys}{gw} dev $interfaces->{$phys}{dev}";
-    $B->ip_route('add',$route);  # so that we can do name resolution! 
-    system "service openvpn start $vpn[$i]";
+    $B->ip_route('add',$route);  # so that we can do name resolution!
+    if ($is_systemd) {
+	system "systemctl start openvpn\@${vpn[$i]}.service";
+    } else {
+	system "service openvpn start $vpn[$i]";
+    }
 
     for (my $try=1;$try<=TRIES;$try++) {
 	print STDERR "waiting for $vpn[$i] to come up: try $try/",TRIES,"...\n";
-	if (`service openvpn status $_`       =~ /is running/
+	if (`$status_command`       =~ /$running_string/
 	    && `ifconfig $tunnel[$i] 2>/dev/null` =~ /UP/) {
 	    print STDERR "Succcess!\n";
 	    last;
@@ -107,6 +124,4 @@ sub rewrite_vpn_config_file {
     rename($old,"$old.bak");
     rename($new,$old);
 }
-
-
 
