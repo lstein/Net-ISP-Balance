@@ -7,9 +7,10 @@ use Data::Dumper;
 no warnings;
 
 eval 'use Net::Netmask';
+eval 'use Net::Subnet qw(subnet_matcher)';
 eval 'use Net::ISP::Balance::ConfigData';
 
-our $VERSION    = '1.32';
+our $VERSION    = '1.33';
 
 =head1 NAME
 
@@ -1612,8 +1613,10 @@ sub interface_info {
 	    my ($net,$gateway,$dev) = ($1,$2,$3);
 	    ($net) = /^(\S+)/ if $net eq 'nexthop';
 	    my $vdev  = $vnet{$dev}{$net} || $dev;
-	    $nets{$vdev} = $net unless $net eq 'default';
-	    $gws{$vdev}  = $gateway;
+	    if (($net eq 'default') || (subnet_matcher($net)->($vif{$dev}{$vdev}{addr}))) {
+               $nets{$vdev} = $net unless $net eq 'default';
+               $gws{$vdev}  = $gateway;
+            }
 	}
     }
 

@@ -81,10 +81,11 @@ my $build = $class->new(
     configure_requires => { 'Module::Build' => 0 },
     requires          => {
 	'perl'        => '5.8.0',
-	'Net::Netmask'  => 0,
-	'Pod::Usage'    => 0,
-	'DB_File'       => 0,
-    },
+        'Net::Netmask'  => 0,
+        'Net::Subnet' => 0,
+        'Pod::Usage'    => 0,
+        'DB_File'       => 0,
+       },
     );
 
 my $install_etc = Net::ISP::Balance->install_etc;
